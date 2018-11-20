@@ -3,7 +3,7 @@ from pprint import pprint
 from movie_data import MovieData,Chat
 import pickle
 data=''
-with open('../train_data.json') as f:
+with open('train_data.json') as f:
     data = json.load(f)
 key=''
 movie={}
@@ -13,7 +13,15 @@ document_keys=['plot','review','comments']
 other_keys=['movie_name','spans','chat']
 w2i={}
 i2w={}
-index=0
+
+w2i['<SOS>'] = 0
+w2i['<EOS>'] = 1
+
+i2w[0] = ['<SOS>']
+i2w[1] = ['<EOS>']
+
+index=2
+
 def clean_data(data):
     for key in data:
         key['documents']['plot']=clear_quotes(key['documents']['plot'])
@@ -65,9 +73,6 @@ def helper_word_to_index(values):
                 w2i[word]=index
                 i2w[str(index)]=word
                 index=index+1
-
-
-
 
 
 def convert_data_to_obj(data):
