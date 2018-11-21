@@ -22,7 +22,7 @@ def load_movie_data():
 def convert_sentence_to_index(sentence):
     sent_arr=sentence.split()
     sent_indx=torch.zeros(len(sent_arr),dtype=torch.long)
-
+    sent_indx=sent_indx.cuda()
     for i in range(0,len(sent_arr)):
         sent_indx[i]=w2i[sent_arr[i]]
     return sent_indx
@@ -35,6 +35,7 @@ def train_model():
     start_sent='<SOS>'
     start_index=convert_sentence_to_index(start_sent)
     model=Model(512,len(w2i))
+    model.cuda()
 
     optimizer = optim.Adam(model.parameters())
     criterion = nn.CrossEntropyLoss()
@@ -50,29 +51,33 @@ def train_model():
 
             for chat in chats:
                 for i in range(0,len(chat.chat),2):
-                    encoder_sentence=chat.chat[i] #TODO chat history
-                    decoder_sentence=chat.chat[i+1]
+                    if((i+1)<len(chat.chat)):
+                        encoder_sentence = chat.chat[i]  # TODO chat history
+                        decoder_sentence = chat.chat[i + 1]
 
-                    encoder_sentence = '<SOS> ' + encoder_sentence + ' <EOS>'
-                    decoder_sentence=decoder_sentence+' <EOS>'
-                    enc_sent_indx=convert_sentence_to_index(encoder_sentence)
-                    dec_sent_index=convert_sentence_to_index(decoder_sentence)
+                        encoder_sentence = '<SOS> ' + encoder_sentence + ' <EOS>'
+                        decoder_sentence = decoder_sentence + ' <EOS>'
+                        enc_sent_indx = convert_sentence_to_index(encoder_sentence)
+                        dec_sent_index = convert_sentence_to_index(decoder_sentence)
 
-                    output = model.forward(enc_sent_indx,dec_sent_index,start_index, True) #, plot_sent_indx)
-                    print(len(output))
+                        output = model.forward(enc_sent_indx, dec_sent_index, start_index, True)  # , plot_sent_indx)
+                        print(len(output))
 
-                    output_text = []
-                    for j in range(0,len(dec_sent_index)):
-                        model.zero_grad()
-                        org_word_index=torch.zeros(1,dtype=torch.long)
-                        org_word_index[0]=dec_sent_index[j]
-                        print(output[j].shape)
+                        output_text = []
+                        for j in range(0, len(dec_sent_index)):
+                            model.zero_grad()
+                            org_word_index = torch.zeros(1, dtype=torch.long, device="cuda:0")
+                            org_word_index[0] = dec_sent_index[j]
 
-                        index = torch.argmax(output[j])
-                        output_text.append(i2w[str(index.item())])
-                        loss = criterion(output[j].view(1,-1),org_word_index)
-                        loss.backward(retain_graph=True)
+                            index = torch.argmax(output[j])
+                            output_text.append(i2w[str(index.item())])
+                            if (j == 0):
+                                loss = criterion(output[j].view(1, -1), org_word_index)
+                            else:
+                                loss += criterion(output[j].view(1, -1), org_word_index)
+                        print(loss.item() / len(dec_sent_index))
+                        loss.backward()
                         optimizer.step()
 
-                    print(output_text, encoder_sentence, decoder_sentence)
+                        print(output_text, encoder_sentence, decoder_sentence)
 train_model()
