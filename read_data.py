@@ -3,7 +3,7 @@ from pprint import pprint
 from movie_data import MovieData,Chat
 import pickle
 data=''
-with open('train_data.json') as f:
+with open('../train_data.json') as f:
     data = json.load(f)
 key=''
 movie={}
@@ -17,8 +17,8 @@ i2w={}
 w2i['<SOS>'] = 0
 w2i['<EOS>'] = 1
 
-i2w[0] = ['<SOS>']
-i2w[1] = ['<EOS>']
+i2w[0] = '<SOS>'
+i2w[1] = '<EOS>'
 
 index=2
 

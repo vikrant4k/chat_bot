@@ -5,6 +5,8 @@ import torch
 
 import torch.nn as nn
 import torch.nn.functional as F
+import datetime
+import time
 import torch.optim as optim
 
 def load_index_files():
@@ -32,11 +34,14 @@ movie_data=load_movie_data()
 model=None
 
 def train_model():
+    ts = time.time()
+    st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
+    txt_file=open(st,"w")
     start_sent='<SOS>'
     start_index=convert_sentence_to_index(start_sent)
     model=Model(512,len(w2i))
     model.cuda()
-
+    lis=model.parameters()
     optimizer = optim.Adam(model.parameters())
     criterion = nn.CrossEntropyLoss()
 
@@ -59,25 +64,38 @@ def train_model():
                         decoder_sentence = decoder_sentence + ' <EOS>'
                         enc_sent_indx = convert_sentence_to_index(encoder_sentence)
                         dec_sent_index = convert_sentence_to_index(decoder_sentence)
+                        if(len(dec_sent_index)<400 and len(dec_sent_index)>2):
+                            output,coverage,current_attention = model.forward(enc_sent_indx, dec_sent_index, start_index,
+                                                   True)  # , plot_sent_indx)
+                            ##print(len(output))
 
-                        output = model.forward(enc_sent_indx, dec_sent_index, start_index, True)  # , plot_sent_indx)
-                        print(len(output))
+                            output_text = ""
+                            att_sum=torch.zeros(coverage.shape,device="cuda:0")
+                            for j in range(0, len(dec_sent_index)):
+                                org_word_index = torch.zeros(1, dtype=torch.long, device="cuda:0",requires_grad=False)
+                                org_word_index[0] = dec_sent_index[j]
+                                index = torch.argmax(output[j])
 
-                        output_text = []
-                        for j in range(0, len(dec_sent_index)):
+                                output_text+=(i2w[str(index.item())])+" "
+                                if (j == 0):
+                                    loss = criterion(output[j].view(1, -1), org_word_index)
+                                    att_sum=torch.sum(torch.min(coverage[0],current_attention[0]))
+                                    loss+=att_sum
+                                else:
+                                    loss += criterion(output[j].view(1, -1), org_word_index)
+                                    att_sum = torch.sum(torch.min(coverage[j], current_attention[j]))+att_sum
+                                    loss+=att_sum
+                            print(loss.item() / len(dec_sent_index))
                             model.zero_grad()
-                            org_word_index = torch.zeros(1, dtype=torch.long, device="cuda:0")
-                            org_word_index[0] = dec_sent_index[j]
-
-                            index = torch.argmax(output[j])
-                            output_text.append(i2w[str(index.item())])
-                            if (j == 0):
-                                loss = criterion(output[j].view(1, -1), org_word_index)
-                            else:
-                                loss += criterion(output[j].view(1, -1), org_word_index)
-                        print(loss.item() / len(dec_sent_index))
-                        loss.backward()
-                        optimizer.step()
-
-                        print(output_text, encoder_sentence, decoder_sentence)
+                            loss.backward()
+                            optimizer.step()
+                            txt_file.write("Model: "+output_text)
+                            txt_file.write("\n")
+                            txt_file.write("Encoder :"+encoder_sentence)
+                            txt_file.write("\n")
+                            txt_file.write("Decoder :" + decoder_sentence)
+                            txt_file.write("\n")
+                            ##print(output_text, encoder_sentence, decoder_sentence)
+        print("Epoch Completed")
+    txt_file.close()
 train_model()

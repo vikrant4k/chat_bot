@@ -83,27 +83,37 @@ class Model(nn.Module):
 
         ini_dec_hidd_state = lstm_out[-1].view(1,1,-1)
         self.decoder.hidden=self.decoder.init_hidden(ini_dec_hidd_state)
-
+        encoder_out = lstm_out.view(lstm_out.shape[0], 1, 512)
         out_word_list = []
         if(isTrain):
-            for i in range(-1,len(dec_sent_index)):
+            coverage=torch.zeros(len(dec_sent_index),lstm_out.shape[0],device="cuda:0")
+            current_attention=torch.zeros(len(dec_sent_index),lstm_out.shape[0],device="cuda:0")
+            for i in range(-1,len(dec_sent_index)-1):
                 if(i==-1):
                     out, hidden_state=self.decoder.forward(start_index)
 
                 else:
                     out, hidden_state=self.decoder.forward(dec_sent_index[i])
 
-                encoder_out=lstm_out.view(lstm_out.shape[0],1,512)
+
                 decoder_out=hidden_state[0].view(1,512)
                 attention_out=torch.zeros(lstm_out.shape[0],1,device="cuda:0")
                 for j in range(0,lstm_out.shape[0]):
                        attention_out[j]=self.attention.forward(encoder_out[j],decoder_out)
-                attention_weights=F.softmax(attention_out)
+                attention_weights=F.softmax(attention_out,dim=0)
                 mult = torch.matmul(lstm_out.view(lstm_out.shape[2], lstm_out.shape[0]), attention_weights)
                 context = torch.sum(mult, dim=1)
                 concat = torch.cat((context.view(1, 1, -1), hidden_state[0].view(1, 1, -1)), 2)
-                context = self.linear(concat.view(-1))
-                out = F.relu(context)
+                out_word_data = self.linear(concat.view(-1))
+                if(i==-1):
+                    temp_sum=torch.zeros(1,lstm_out.shape[0],device="cuda:0")
+                else:
+                    temp_sum=torch.sum(current_attention)
+                coverage[i+1,:]=temp_sum
+                ##print(coverage)
+                current_attention[i+1,:]=attention_weights.view(-1)
+
+                ##out_word = tout_word_data)
                 ##attention_weights = F.softmax(torch.matmul(lstm_out.view(lstm_out.shape[0], lstm_out.shape[2]), hidden_state[0].view(-1,1)))  # todo bmm
 
                 ##mult = torch.matmul(lstm_out.view(lstm_out.shape[2],lstm_out.shape[0]), attention_weights)
@@ -111,7 +121,7 @@ class Model(nn.Module):
                 ##concat = torch.cat((context.view(1,1,-1),hidden_state[0].view(1,1,-1)),2)
                 ##context = self.linear(concat.view(-1))
                 ##out = F.relu(context)
-                out_word_list.append(out)
+                out_word_list.append(out_word_data)
 
 
-        return out_word_list
+        return out_word_list,coverage,current_attention
