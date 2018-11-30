@@ -13,14 +13,17 @@ document_keys=['plot','review','comments']
 other_keys=['movie_name','spans','chat']
 w2i={}
 i2w={}
+dic_freq={}
 
 w2i['<SOS>'] = 0
 w2i['<EOS>'] = 1
+w2i['unknown']=2
 
 i2w[0] = '<SOS>'
 i2w[1] = '<EOS>'
+i2w[2]='unknown'
 
-index=2
+index=3
 
 def clean_data(data):
     for key in data:
@@ -53,6 +56,29 @@ def clear_quotes(data):
         data[i] = val
     return data
 
+def create_word_frequency(data):
+    for key in data:
+        for doc_key in document_keys:
+            values=key['documents'][doc_key]
+            helper_word_to_freq(values)
+        for other_key in other_keys:
+            values=key[other_key]
+            helper_word_to_freq(values)
+
+def helper_word_to_freq(values):
+    if (isinstance(values, str)):
+        values = [values]
+    for value in values:
+        value_arr = value.split()
+        for word in value_arr:
+            if (word not in dic_freq):
+                dic_freq[word]=1
+            else:
+                dic_freq[word]=dic_freq[word]+1
+
+
+
+
 def create_word_to_ind(data):
     for key in data:
         for doc_key in document_keys:
@@ -70,9 +96,12 @@ def helper_word_to_index(values):
         value_arr=value.split()
         for word in value_arr:
             if(word not in w2i):
-                w2i[word]=index
-                i2w[str(index)]=word
-                index=index+1
+                if(dic_freq[word]>5):
+                    w2i[word] = index
+                    i2w[str(index)] = word
+                    index = index + 1
+                else:
+                    w2i[word] = 2
 
 
 def convert_data_to_obj(data):
@@ -119,8 +148,11 @@ def convert_data_to_obj(data):
     return movie
 
 data=clean_data(data)
+create_word_frequency(data)
 create_word_to_ind(data)
 convert_data_to_obj(data)
+with open('w_freq.json', 'w') as fp:
+    json.dump(dic_freq, fp)
 with open('w2i.json', 'w') as fp:
     json.dump(w2i, fp)
 with open('i2w.json', 'w') as fp:
