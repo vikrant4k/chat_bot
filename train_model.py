@@ -35,7 +35,6 @@ def create_vocab_distributions():
             prob_vocab[index]=1/total_count
         else:
            prob_vocab[index]=w_freq[i2w[key]]/total_count
-    print(prob_vocab)
     return prob_vocab
 
 
@@ -44,7 +43,28 @@ def load_movie_data():
         movie_data = pickle.load(input)
     return movie_data
 
+def convert_knowledge(knowledge):
+    know_data=[]
+    le=0
+    if(type(knowledge)==list):
 
+        for sentence in knowledge:
+            data='<SOS> ' + sentence + ' <EOS>'
+            indx_data=convert_sentence_to_index(data)
+            le+=indx_data.shape[0]
+            know_data.append(indx_data)
+        index_data=torch.zeros(le,dtype=torch.long,device="cuda:0")
+        le=0
+        for data in know_data:
+            for i in range(0,data.shape[0]):
+                index_data[le]=data[i]
+                le+=1
+    else:
+        data = '<SOS> ' + knowledge + ' <EOS>'
+        index_data=convert_sentence_to_index(data)
+        index_data=index_data.cuda()
+        ##know_data.append(index_data)
+    return index_data
 
 def convert_sentence_to_index(sentence):
     sent_arr=sentence.split()
@@ -72,7 +92,6 @@ def train_model():
             max_val=temp_val
     model=Model(512,max_val+1,prob_vocab)
     model.cuda()
-    lis=model.parameters()
     optimizer = optim.Adam(model.parameters())
     criterion = nn.CrossEntropyLoss()
 
@@ -82,9 +101,10 @@ def train_model():
             movie=movie_data[data]
             chats=movie.chat
             plot=movie.plot
+
             #just the plot
-            ##plot_sent_indx = convert_sentence_to_index(movie.plot)
-            ##print(movie.plot)
+
+
              ##model.knowledge.forward(plot_sent_indx)
 
             for chat in chats:
@@ -105,8 +125,11 @@ def train_model():
                               input_sent=torch.cat((deq[0],deq[1],enc_sent_indx),dim=0)
                             else:
                                 input_sent=enc_sent_indx
+                            plot_sent_indx_arr = convert_knowledge(plot)
+                            know_hidd = model.forward_knowledge_movie(plot_sent_indx_arr)
+                            know_hidd = know_hidd.squeeze()
                             output,coverage,current_attention = model.forward(input_sent, dec_sent_index, start_index,
-                                                   True)  # , plot_sent_indx)
+                                                   True,know_hidd)  # , plot_sent_indx)
                             deq.append(enc_sent_indx)
                             deq.append(deq_dec_sent_index)
                             ##print(len(output))
