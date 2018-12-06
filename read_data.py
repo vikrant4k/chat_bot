@@ -114,8 +114,9 @@ def convert_data_to_obj(data):
             chat_data = Chat(chat_id, chat)
             movie_data.chat.append(chat_data)
             curr_review = key['documents']['review']
-            if (curr_review not in movie_data.review):
-                movie_data.review.append(curr_review)
+            for reviews in curr_review:
+                if (reviews not in movie_data.review):
+                    movie_data.review.append(reviews)
             curr_fact_table = key['documents']['fact_table']
             for fact_key in curr_fact_table:
                 if (fact_key not in movie_data.facts_table):
@@ -131,8 +132,7 @@ def convert_data_to_obj(data):
 
         else:
             plot = key['documents']['plot']
-            review = []
-            review.append(key['documents']['review'])
+            review=(key['documents']['review'])
             fact_table = key['documents']['fact_table']
             comments = key['documents']['comments']
             movie_name = key['movie_name']

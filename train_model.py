@@ -9,7 +9,8 @@ import datetime
 import time
 import torch.optim as optim
 from collections import deque
-
+import math
+import numpy as np
 def load_index_files():
     with open('w2i.json') as f:
          w2i= json.load(f)
@@ -79,7 +80,29 @@ movie_data=load_movie_data()
 prob_vocab=create_vocab_distributions()
 model=None
 
+def save_model(epoch,loss,optimizer,model):
+    torch.save({
+        'epoch': epoch,
+        'model_state_dict': model.state_dict(),
+        'optimizer_state_dict': optimizer.state_dict(),
+        'loss': loss
+    }, "model.pkl")
+
+def load_model(max_val):
+    model = Model(512, max_val + 1, prob_vocab)
+    optimizer = optim.Adam(model.parameters())
+
+    checkpoint = torch.load("model.pkl")
+    model.load_state_dict(checkpoint['model_state_dict'])
+    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+    epoch = checkpoint['epoch']
+    loss = checkpoint['loss']
+    return model,optimizer,epoch,loss
+
 def train_model():
+    model_exist=True
+    lamb=1e-4
+    prob=0.6
     ts = time.time()
     st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
     txt_file=open(st,"w")
@@ -90,89 +113,121 @@ def train_model():
         temp_val=int(key)
         if(max_val<temp_val):
             max_val=temp_val
-    model=Model(512,max_val+1,prob_vocab)
-    model.cuda()
-    optimizer = optim.Adam(model.parameters())
+    if(model_exist):
+        model,optimizer,epoch,loss=load_model(max_val)
+        model.cuda()
+        optimizer = optim.Adam(model.parameters())
+    else:
+        model = Model(512, max_val + 1, prob_vocab)
+        model.cuda()
+        optimizer = optim.Adam(model.parameters())
     criterion = nn.CrossEntropyLoss()
-
+    count=0
+    chats_complted=0
     for epoch in range(200):
         for data in movie_data:
+
+            count=count+1
+
              #TODO ALSO FOR DECODER AND OTHER ENCODERS?
-            movie=movie_data[data]
-            chats=movie.chat
-            plot=movie.plot
+            if(count!=201):
+                movie = movie_data[data]
+                chats = movie.chat
+                plot = movie.plot
+                review = movie.review
+                comments = movie.comments
+                plot_sent_indx_arr = convert_knowledge(plot)
+                review_sent_indx_arr = convert_knowledge(review)
+                comment_sent_indx_arr = convert_knowledge(comments)
+                # just the plot
 
-            #just the plot
+                ##model.knowledge.forward(plot_sent_indx)
 
+                for chat in chats:
+                    chats_complted += 1
+                    deq = deque(maxlen=2)
+                    for i in range(0, len(chat.chat), 2):
+                        if ((i + 1) < len(chat.chat)):
+                            encoder_sentence = chat.chat[i]  # TODO chat history
+                            decoder_sentence = chat.chat[i + 1]
 
-             ##model.knowledge.forward(plot_sent_indx)
-
-            for chat in chats:
-                deq = deque(maxlen=2)
-                for i in range(0,len(chat.chat),2):
-                    if((i+1)<len(chat.chat)):
-                        encoder_sentence = chat.chat[i]  # TODO chat history
-                        decoder_sentence = chat.chat[i + 1]
-
-
-                        encoder_sentence = '<SOS> ' + encoder_sentence + ' <EOS>'
-                        decoder_sentence = decoder_sentence + ' <EOS>'
-                        enc_sent_indx = convert_sentence_to_index(encoder_sentence)
-                        dec_sent_index = convert_sentence_to_index(decoder_sentence)
-                        deq_dec_sent_index=convert_sentence_to_index('<SOS> '+decoder_sentence)
-                        if(len(dec_sent_index)<400 and len(dec_sent_index)>2):
-                            if(len(deq)>0):
-                              input_sent=torch.cat((deq[0],deq[1],enc_sent_indx),dim=0)
-                            else:
-                                input_sent=enc_sent_indx
-                            plot_sent_indx_arr = convert_knowledge(plot)
-                            know_hidd = model.forward_knowledge_movie(plot_sent_indx_arr)
-                            know_hidd = know_hidd.squeeze()
-                            output,coverage,current_attention = model.forward(input_sent, dec_sent_index, start_index,
-                                                   True,know_hidd)  # , plot_sent_indx)
-                            deq.append(enc_sent_indx)
-                            deq.append(deq_dec_sent_index)
-                            ##print(len(output))
-
-                            output_text = ""
-                            att_sum=torch.zeros(coverage.shape,device="cuda:0")
-                            org_word_index = torch.zeros(len(dec_sent_index), dtype=torch.long, device="cuda:0", requires_grad=False)
-                            for j in range(0, len(dec_sent_index)):
-                                org_word_index[j] = dec_sent_index[j]
-                                index = torch.argmax(output[j])
-                                output_text += (i2w[str(index.item())]) + " "
-                                if(j==0):
-                                    att_sum = torch.sum(torch.min(coverage[0], current_attention[0]))
+                            encoder_sentence = '<SOS> ' + encoder_sentence + ' <EOS>'
+                            decoder_sentence = decoder_sentence + ' <EOS>'
+                            enc_sent_indx = convert_sentence_to_index(encoder_sentence)
+                            dec_sent_index = convert_sentence_to_index(decoder_sentence)
+                            deq_dec_sent_index = convert_sentence_to_index('<SOS> ' + decoder_sentence)
+                            if (len(dec_sent_index) < 350 and len(dec_sent_index) > 2):
+                                if (len(deq) > 0):
+                                    input_sent = torch.cat((deq[0], deq[1], enc_sent_indx), dim=0)
                                 else:
-                                    att_sum = torch.sum(torch.min(coverage[j], current_attention[j])) + att_sum
-                            loss=criterion(output, org_word_index)+att_sum
-                            """
-                            for j in range(0, len(dec_sent_index)):
-                                org_word_index = torch.zeros(1, dtype=torch.long, device="cuda:0",requires_grad=False)
-                                org_word_index[0] = dec_sent_index[j]
-                                index = torch.argmax(output[j])
-
-                                output_text+=(i2w[str(index.item())])+" "
-                                if (j == 0):
-                                    loss = criterion(output[j].view(1, -1), org_word_index)
-                                    att_sum=torch.sum(torch.min(coverage[0],current_attention[0]))
-                                    loss+=att_sum
+                                    input_sent = enc_sent_indx
+                                know_hidd = model.forward_knowledge_movie(plot_sent_indx_arr, review_sent_indx_arr,
+                                                                          comment_sent_indx_arr)
+                                prob_current = prob * math.exp(-lamb * chats_complted)
+                                select = np.random.choice([0, 1], p=[prob_current, 1 - prob_current])
+                                if (select == 0):
+                                    isRely = True
                                 else:
-                                    loss += criterion(output[j].view(1, -1), org_word_index)
-                                    att_sum = torch.sum(torch.min(coverage[j], current_attention[j]))+att_sum
-                                    loss+=att_sum
-                            """
-                            print(loss.item())
-                            model.zero_grad()
-                            loss.backward()
-                            optimizer.step()
-                            txt_file.write("Model: "+output_text)
-                            txt_file.write("\n")
-                            txt_file.write("Encoder :"+encoder_sentence)
-                            txt_file.write("\n")
-                            txt_file.write("Decoder :" + decoder_sentence)
-                            txt_file.write("\n")
-                            ##print(output_text, encoder_sentence, decoder_sentence)
+                                    isRely = False
+                                output, coverage, current_attention = model.forward(input_sent, dec_sent_index,
+                                                                                    start_index,
+                                                                                    True, know_hidd,
+                                                                                    isRely)  # , plot_sent_indx)
+                                deq.append(enc_sent_indx)
+                                deq.append(deq_dec_sent_index)
+                                ##print(len(output))
+
+                                output_text = ""
+                                att_sum = torch.zeros(coverage.shape, device="cuda:0")
+                                org_word_index = torch.zeros(len(dec_sent_index), dtype=torch.long, device="cuda:0",
+                                                             requires_grad=False)
+                                for j in range(0, len(dec_sent_index)):
+                                    org_word_index[j] = dec_sent_index[j]
+                                    index = torch.argmax(output[j])
+                                    output_text += (i2w[str(index.item())]) + " "
+                                    if (j == 0):
+                                        att_sum = torch.sum(torch.min(coverage[0], current_attention[0]))
+                                    else:
+                                        att_sum = torch.sum(torch.min(coverage[j], current_attention[j])) + att_sum
+                                loss = criterion(output, org_word_index) + att_sum
+                                """
+                                for j in range(0, len(dec_sent_index)):
+                                    org_word_index = torch.zeros(1, dtype=torch.long, device="cuda:0",requires_grad=False)
+                                    org_word_index[0] = dec_sent_index[j]
+                                    index = torch.argmax(output[j])
+
+                                    output_text+=(i2w[str(index.item())])+" "
+                                    if (j == 0):
+                                        loss = criterion(output[j].view(1, -1), org_word_index)
+                                        att_sum=torch.sum(torch.min(coverage[0],current_attention[0]))
+                                        loss+=att_sum
+                                    else:
+                                        loss += criterion(output[j].view(1, -1), org_word_index)
+                                        att_sum = torch.sum(torch.min(coverage[j], current_attention[j]))+att_sum
+                                        loss+=att_sum
+                                """
+                                if (loss.item() < 200):
+                                    print(loss.item())
+                                    model.zero_grad()
+                                    loss.backward()
+                                    optimizer.step()
+                                    txt_file.write("Model: " + output_text)
+                                    txt_file.write("\n")
+                                    txt_file.write("Encoder :" + encoder_sentence)
+                                    txt_file.write("\n")
+                                    txt_file.write("Decoder :" + decoder_sentence)
+                                    txt_file.write("\n")
+                                    if (isRely == False):
+                                        txt_file.write("is Rely False")
+                                        txt_file.write("\n")
+                                else:
+                                    print(loss.item())
+            txt_file.write("Movie Completed "+str(count))
+            txt_file.write("\n")
+            txt_file.write("Chats Completed " + str(chats_complted))
+            txt_file.write("\n")
+            if(count%10==0 ):
+                save_model(epoch,loss,optimizer,model)
         print("Epoch Completed")
     txt_file.close()
 train_model()

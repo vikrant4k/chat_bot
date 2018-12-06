@@ -51,6 +51,7 @@ class KnowledgeRNN(nn.Module):
         self.hidden_dim = hidden_dim
         self.word_embedding=word_embedding
         self.lstm = nn.LSTM(embedding_dim, hidden_dim, bidirectional=True)
+        self.resource_attention = Attention(512)
 
     def init_hidden(self):
         init_hidden= (torch.zeros(2, 1, self.hidden_dim,device="cuda:0"),
@@ -62,6 +63,15 @@ class KnowledgeRNN(nn.Module):
         lstm_out, self.hidden = self.lstm(
             embeds.view(len(sentence), 1, -1), self.hidden)
         return lstm_out, self.hidden
+
+    def calculate_resource_attention(self,know_hidd,decoder_out):
+        decoder_temp = decoder_out.repeat(know_hidd.shape[0], 1)
+        attention_input=torch.cat((know_hidd,decoder_temp),dim=1)
+        attention_out=self.resource_attention.forward(attention_input)
+        attention_weights = F.softmax(attention_out, dim=0)
+        attention_weights=attention_weights.squeeze()
+        context_vector=torch.matmul(torch.t(know_hidd),attention_weights)
+        return context_vector
 
 class Attention(nn.Module):
 
@@ -84,21 +94,34 @@ class Model(nn.Module):
         self.word_embedding = nn.Embedding(vocab_size, embedding_dim)
         self.encoder=Encoder(embedding_dim,128,vocab_size, self.word_embedding)
         self.decoder = Decoder(embedding_dim, 256, self.word_embedding, vocab_size)
-        self.knowledge=KnowledgeRNN(embedding_dim,128,self.word_embedding)
-        self.linear1 = nn.Linear(256*3,vocab_size)
+        self.plot_knowledge=KnowledgeRNN(embedding_dim,128,self.word_embedding)
+        self.rev_knowledge = KnowledgeRNN(embedding_dim, 128, self.word_embedding)
+        self.com_knowledge = KnowledgeRNN(embedding_dim, 128, self.word_embedding)
+        self.linear1 = nn.Linear(256*5,vocab_size)
         ##self.linear2 = nn.Linear(2000, vocab_size)
         self.decoder_attention=Attention(512)
-        self.resource_attention=Attention(512)
         self.p_gen=torch.zeros(1,device="cuda:0")
         self.prob_vocab=prob_vocab
 
-    def forward_knowledge_movie(self,knowledge_data):
-        self.knowledge.hidden=self.knowledge.init_hidden()
-        lstm_out, hidden_state = self.knowledge.forward(knowledge_data)
-        return lstm_out
+    def forward_knowledge_movie(self,plot,review,comment):
+        data_out=[]
+        self.plot_knowledge.hidden=self.plot_knowledge.init_hidden()
+        lstm_out, hidden_state = self.plot_knowledge.forward(plot)
+        data_out.append(lstm_out.squeeze())
+        self.rev_knowledge.hidden = self.rev_knowledge.init_hidden()
+        lstm_out1, hidden_state = self.rev_knowledge.forward(review)
+        lstm_out1=lstm_out1.squeeze()
+        data_out.append(lstm_out1)
+        self.com_knowledge.hidden = self.com_knowledge.init_hidden()
+        lstm_out2, hidden_state = self.com_knowledge.forward(comment)
+        lstm_out2 = lstm_out2.squeeze()
+
+        data_out.append(lstm_out2)
+        return data_out
 
 
-    def forward(self,enc_sent_indx,dec_sent_index,start_index,isTrain,know_hidd):
+
+    def forward(self,enc_sent_indx,dec_sent_index,start_index,isTrain,know_hidd,isRely):
         self.encoder.hidden = self.encoder.init_hidden() #TODO WE CREATE HIDDEN HERE ACTUALLY
 
         lstm_out, hidden_state=self.encoder.forward(enc_sent_indx)
@@ -120,14 +143,26 @@ class Model(nn.Module):
         if(isTrain):
             coverage=torch.zeros(len(dec_sent_index),lstm_out.shape[0],device="cuda:0")
             current_attention=torch.zeros(len(dec_sent_index),lstm_out.shape[0],device="cuda:0")
+
             for i in range(-1,len(dec_sent_index)-1):
                 if(i==-1):
                     out, hidden_state=self.decoder.forward(start_index)
 
                 else:
-                    out, hidden_state=self.decoder.forward(dec_sent_index[i])
+                    if(isRely):
+                        ##out, hidden_state = self.decoder.forward(dec_sent_index[i])
+                        probs=F.softmax(out_word_data,dim=0)
+                        index = torch.argmax(probs)
+                        out, hidden_state = self.decoder.forward(index)
+                    else:
+                        probs = F.softmax(out_word_data, dim=0)
+                        index = torch.argmax(probs)
+                        out, hidden_state = self.decoder.forward(index)
                 decoder_out=hidden_state[0].view(1,256)
-                resource_context=self.calculate_resource_attention(know_hidd,decoder_out)
+                resource_context_plot=self.plot_knowledge.calculate_resource_attention(know_hidd[0],decoder_out)
+                resource_context_rev = self.rev_knowledge.calculate_resource_attention(know_hidd[1], decoder_out)
+                resource_context_com = self.com_knowledge.calculate_resource_attention(know_hidd[2], decoder_out)
+                resource_context=torch.cat((resource_context_plot,resource_context_rev,resource_context_com),dim=0)
                 out_word_data,attention_weights=self.calculate_decoder_attention(lstm_out,encoder_out,hidden_state,decoder_out,resource_context)
                 if(i==-1):
                     temp_sum=torch.zeros(1,lstm_out.shape[0],device="cuda:0")
@@ -142,14 +177,6 @@ class Model(nn.Module):
 
         return out_word_list,coverage,current_attention
 
-    def calculate_resource_attention(self,know_hidd,decoder_out):
-        decoder_temp = decoder_out.repeat(know_hidd.shape[0], 1)
-        attention_input=torch.cat((know_hidd,decoder_temp),dim=1)
-        attention_out=self.resource_attention.forward(attention_input)
-        attention_weights = F.softmax(attention_out, dim=0)
-        attention_weights=attention_weights.squeeze()
-        context_vector=torch.matmul(torch.t(know_hidd),attention_weights)
-        return context_vector
 
         ##attention_input = torch.cat((encoder_out[:, -1], decoder_temp), dim=1)
 
