@@ -75,11 +75,37 @@ def convert_sentence_to_index(sentence):
         sent_indx[i]=w2i[sent_arr[i]]
     return sent_indx
 
+def churn_review(review):
+    for i  in range(0,len(review)):
+        str_arr=review[i].split()
+        if(len(str_arr)>390):
+            str=''
+            for j in range(0,390):
+                if(j==0):
+                    str=str_arr[0]
+                else:
+                    str=str+' '+str_arr[j]
+            review[i]=str
+    return review
+def churn_comments(comments):
+    if(len(comments)>21):
+        return comments[:21]
+    return comments
+
 w2i,i2w,w_freq=load_index_files()
 movie_data=load_movie_data()
+count=0
 prob_vocab=create_vocab_distributions()
 model=None
-
+"""
+count=0
+avg=0
+for data in movie_data:
+    count=count+1
+    movie=movie_data[data]
+    avg+=(len(movie.comments))
+print(avg/count)
+"""
 def save_model(epoch,loss,optimizer,model):
     torch.save({
         'epoch': epoch,
@@ -99,8 +125,9 @@ def load_model(max_val):
     loss = checkpoint['loss']
     return model,optimizer,epoch,loss
 
+
 def train_model():
-    model_exist=True
+    model_exist=False
     lamb=1e-4
     prob=0.6
     ts = time.time()
@@ -128,21 +155,19 @@ def train_model():
         for data in movie_data:
 
             count=count+1
+            movie = movie_data[data]
+            chats = movie.chat
+            plot = movie.plot
+            review = movie.review
+            comments = churn_comments(movie.comments)
+            review = churn_review(review)
+            plot_sent_indx_arr = convert_knowledge(plot)
+            review_sent_indx_arr = convert_knowledge(review)
+            comment_sent_indx_arr = convert_knowledge(comments)
+            # just the plot
 
-             #TODO ALSO FOR DECODER AND OTHER ENCODERS?
-            if(count!=201):
-                movie = movie_data[data]
-                chats = movie.chat
-                plot = movie.plot
-                review = movie.review
-                comments = movie.comments
-                plot_sent_indx_arr = convert_knowledge(plot)
-                review_sent_indx_arr = convert_knowledge(review)
-                comment_sent_indx_arr = convert_knowledge(comments)
-                # just the plot
-
-                ##model.knowledge.forward(plot_sent_indx)
-
+            ##model.knowledge.forward(plot_sent_indx)
+            if(len(comments)>0 and len(review)>0):
                 for chat in chats:
                     chats_complted += 1
                     deq = deque(maxlen=2)
@@ -190,22 +215,6 @@ def train_model():
                                     else:
                                         att_sum = torch.sum(torch.min(coverage[j], current_attention[j])) + att_sum
                                 loss = criterion(output, org_word_index) + att_sum
-                                """
-                                for j in range(0, len(dec_sent_index)):
-                                    org_word_index = torch.zeros(1, dtype=torch.long, device="cuda:0",requires_grad=False)
-                                    org_word_index[0] = dec_sent_index[j]
-                                    index = torch.argmax(output[j])
-
-                                    output_text+=(i2w[str(index.item())])+" "
-                                    if (j == 0):
-                                        loss = criterion(output[j].view(1, -1), org_word_index)
-                                        att_sum=torch.sum(torch.min(coverage[0],current_attention[0]))
-                                        loss+=att_sum
-                                    else:
-                                        loss += criterion(output[j].view(1, -1), org_word_index)
-                                        att_sum = torch.sum(torch.min(coverage[j], current_attention[j]))+att_sum
-                                        loss+=att_sum
-                                """
                                 if (loss.item() < 200):
                                     print(loss.item())
                                     model.zero_grad()
@@ -222,12 +231,17 @@ def train_model():
                                         txt_file.write("\n")
                                 else:
                                     print(loss.item())
+                                loss = None
+                                know_hidd = None
+            att_sum=None
+            coverage=None
+            torch.cuda.empty_cache()
             txt_file.write("Movie Completed "+str(count))
             txt_file.write("\n")
             txt_file.write("Chats Completed " + str(chats_complted))
             txt_file.write("\n")
-            if(count%10==0 ):
-                save_model(epoch,loss,optimizer,model)
+            ##if(count%10==0 ):
+                ##save_model(epoch,loss,optimizer,model)
         print("Epoch Completed")
     txt_file.close()
 train_model()

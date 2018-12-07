@@ -96,7 +96,7 @@ def helper_word_to_index(values):
         value_arr=value.split()
         for word in value_arr:
             if(word not in w2i):
-                if(dic_freq[word]>5):
+                if(dic_freq[word]>10):
                     w2i[word] = index
                     i2w[str(index)] = word
                     index = index + 1
@@ -159,7 +159,6 @@ with open('i2w.json', 'w') as fp:
     json.dump(i2w, fp)
 with open('movie_data.pkl', 'wb') as output:
      pickle.dump(movie, output, pickle.HIGHEST_PROTOCOL)
-##print(key['documents']['plot'])
 ##print(key['documents']['review'])
 ##print(key['documents']['fact_table'])
 ##print(key['documents']['comments']) array
