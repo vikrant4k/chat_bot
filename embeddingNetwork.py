@@ -51,9 +51,9 @@ class Encoder(nn.Module):
 
         network_out = torch.matmul(lstm_out_kb[-1], embedded_movie.view(-1,1))
 
-        lstm_norm = (torch.sqrt(torch.sum(torch.matmul(lstm_out_kb[-1],lstm_out_kb[-1])),1)).detach()
-        lstm_embed_norm = (torch.sqrt(torch.sum(torch.pow(embedded_movie.view(-1,1),2),1))).detach()
-        [-1]
+        lstm_norm = (torch.sqrt(torch.matmul(lstm_out_kb[-1].view(1,-1),lstm_out_kb[-1].view(-1,1)))).detach()
+        lstm_embed_norm = (torch.sqrt(torch.matmul(embedded_movie.view(1,-1),embedded_movie.view(-1,1)))).detach()
+
         network_out = network_out / (lstm_norm*lstm_embed_norm)
 
         return network_out, lstm_out_kb, lstm_norm

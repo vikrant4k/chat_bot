@@ -170,7 +170,7 @@ def train_model():
         model = Encoder(256, 64, max_val + 1, no_of_movies)
         #model.cuda()
         optimizer = optim.Adam(model.parameters())
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.MSELoss()
     count = 0
     chats_complted = 0
     for epoch in range(200):
@@ -199,18 +199,20 @@ def train_model():
                 output, lstm_out_kb, lstm_norm = model.forward(imdb_id, knowledge_base)
 
                 target = torch.tensor(1, dtype=torch.float)
+
                 loss = criterion(output.squeeze(), target)
 
+                choice = torch.from_numpy(choice).long()
                 neg_embeds = model.movie_embedding(choice)
 
                 neg_samples_losses = 0
 
                 neg_target = torch.tensor(-1, dtype=torch.float)
                 for ng in neg_embeds:
+                    #print(ng)
+                    network_out = torch.matmul(lstm_out_kb, ng.view(-1, 1))
 
-                    network_out = torch.matmul(lstm_out_kb, neg_embeds[ng].view(-1, 1))
-
-                    lstm_embed_norm = (torch.sqrt(torch.sum(torch.pow( neg_embeds[ng].view(-1, 1), 2), 1))).detach()
+                    lstm_embed_norm = (torch.sqrt(torch.matmul(ng.view(1, -1), ng.view(-1,1)))).detach()
 
                     network_out = network_out / (lstm_norm * lstm_embed_norm)
 
