@@ -222,6 +222,7 @@ def train_model():
 
                 print(output)
                 optimizer.zero_grad()
+                loss += neg_samples_losses
                 loss.backward()
                 optimizer.step()
 
