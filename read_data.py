@@ -3,7 +3,7 @@ from pprint import pprint
 from movie_data import MovieData,Chat
 import pickle
 data=''
-with open('../train_data.json') as f:
+with open('train_data.json') as f:
     data = json.load(f)
 key=''
 movie={}
@@ -105,14 +105,18 @@ def helper_word_to_index(values):
 
 
 def convert_data_to_obj(data):
+    all_ids = []
     for key in data:
         imdb_id = key['imdb_id']
         if (imdb_id in movie):
             movie_data = movie[imdb_id]
+            #print(movie_data)
             chat = key['chat']
+            #print(chat)
             chat_id = key['chat_id']
             chat_data = Chat(chat_id, chat)
             movie_data.chat.append(chat_data)
+
             curr_review = key['documents']['review']
             for reviews in curr_review:
                 if (reviews not in movie_data.review):
@@ -132,12 +136,32 @@ def convert_data_to_obj(data):
 
         else:
             plot = key['documents']['plot']
+            if all('' == s or s.isspace() for s in plot):
+                continue
             review=(key['documents']['review'])
+            if all('' == s or s.isspace() for s in review):
+                continue
+
             fact_table = key['documents']['fact_table']
+            if all('' == s or s.isspace()  for s in fact_table):
+                continue
+
             comments = key['documents']['comments']
+            if all('' == s or s.isspace() for s in comments):
+                continue
+
             movie_name = key['movie_name']
+            if all('' == s or s.isspace() or s.isdigit() for s in movie_name):
+                continue
+
             spans = key['spans']
+            if all('' == s or s.isspace() for s in spans):
+                continue
+
             labels = key['labels']
+            if all('' == s  for s in labels):
+                continue
+
             if ("chat" in key):
                 chat = key["chat"]
             else:
