@@ -96,7 +96,7 @@ def helper_word_to_index(values):
         value_arr=value.split()
         for word in value_arr:
             if(word not in w2i):
-                if(dic_freq[word]>10):
+                if(dic_freq[word]>15):
                     w2i[word] = index
                     i2w[str(index)] = word
                     index = index + 1

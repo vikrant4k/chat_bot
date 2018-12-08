@@ -115,7 +115,7 @@ def save_model(epoch,loss,optimizer,model):
     }, "model.pkl")
 
 def load_model(max_val):
-    model = Model(512, max_val + 1, prob_vocab)
+    model = Model(256, max_val + 1, prob_vocab)
     optimizer = optim.Adam(model.parameters())
 
     checkpoint = torch.load("model.pkl")
@@ -127,7 +127,7 @@ def load_model(max_val):
 
 
 def train_model():
-    model_exist=False
+    model_exist=True
     lamb=1e-4
     prob=0.6
     ts = time.time()
@@ -145,7 +145,7 @@ def train_model():
         model.cuda()
         optimizer = optim.Adam(model.parameters())
     else:
-        model = Model(512, max_val + 1, prob_vocab)
+        model = Model(256, max_val + 1, prob_vocab)
         model.cuda()
         optimizer = optim.Adam(model.parameters())
     criterion = nn.CrossEntropyLoss()
@@ -167,6 +167,7 @@ def train_model():
             # just the plot
 
             ##model.knowledge.forward(plot_sent_indx)
+            tot_loss=0
             if(len(comments)>0 and len(review)>0):
                 for chat in chats:
                     chats_complted += 1
@@ -215,8 +216,9 @@ def train_model():
                                     else:
                                         att_sum = torch.sum(torch.min(coverage[j], current_attention[j])) + att_sum
                                 loss = criterion(output, org_word_index) + att_sum
-                                if (loss.item() < 200):
-                                    print(loss.item())
+                                tot_loss+=loss.item()
+                                if (loss.item() < 90):
+                                    ##print(loss.item())
                                     model.zero_grad()
                                     loss.backward()
                                     optimizer.step()
@@ -230,9 +232,11 @@ def train_model():
                                         txt_file.write("is Rely False")
                                         txt_file.write("\n")
                                 else:
-                                    print(loss.item())
+                                    ##print(loss.item())
+                                    torch.cuda.empty_cache()
                                 loss = None
                                 know_hidd = None
+            print(tot_loss/len(chats))
             att_sum=None
             coverage=None
             torch.cuda.empty_cache()
@@ -240,8 +244,8 @@ def train_model():
             txt_file.write("\n")
             txt_file.write("Chats Completed " + str(chats_complted))
             txt_file.write("\n")
-            ##if(count%10==0 ):
-                ##save_model(epoch,loss,optimizer,model)
+            if(count%100==0 ):
+                save_model(epoch,loss,optimizer,model)
         print("Epoch Completed")
     txt_file.close()
 train_model()
