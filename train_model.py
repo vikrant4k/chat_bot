@@ -181,6 +181,7 @@ def train_model():
                                 decoder_sentence = decoder_sentence + ' <EOS>'
                                 enc_sent_indx = convert_sentence_to_index(encoder_sentence)
                                 dec_sent_index = convert_sentence_to_index(decoder_sentence)
+                                dec_sent_index=dec_sent_index.detach()
                                 deq_dec_sent_index = convert_sentence_to_index('<SOS> ' + decoder_sentence)
                                 if (len(dec_sent_index) < 350 and len(dec_sent_index) > 2):
                                     if (len(deq) > 0):
@@ -208,14 +209,15 @@ def train_model():
 
                                     output_text = ""
                                     ##att_sum = torch.zeros(coverage.shape, device="cuda:0")
-                                    org_word_index = torch.zeros(len(dec_sent_index), dtype=torch.long, device="cuda:0",
-                                                                 requires_grad=False)
+                                    ##org_word_index = torch.zeros(len(dec_sent_index), dtype=torch.long, device="cuda:0",
+                                    ##                             requires_grad=False)
+                                    org_word_index=dec_sent_index.clone()
 
                                     for j in range(0, len(dec_sent_index)):
-                                        org_word_index[j] = dec_sent_index[j]
-                                        if (chats_complted % 10 == 0):
-                                            index = torch.argmax(output[j])
-                                            output_text += (i2w[str(index.item())]) + " "
+                                    ##    org_word_index[j] = dec_sent_index[j]
+                                    ##    if (chats_complted % 10 == 0):
+                                    ##        index = torch.argmax(output[j])
+                                    ##        output_text += (i2w[str(index.item())]) + " "
 
                                         if (j == 0):
                                             att_sum = torch.sum(torch.min(coverage[0], current_attention[0]))
@@ -228,6 +230,7 @@ def train_model():
                                         model.zero_grad()
                                         loss.backward()
                                         optimizer.step()
+                                        """
                                         if (chats_complted%10 == 0):
                                             print(chats_complted)
                                             txt_file.write("Model: " + output_text.encode('utf-8').decode('utf-8'))
@@ -239,6 +242,7 @@ def train_model():
                                             if (isRely == False):
                                                 txt_file.write("is Rely False")
                                                 txt_file.write("\n")
+                                        """
                                     else:
                                         h = 1
                                         ##print(loss.item())

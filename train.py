@@ -194,30 +194,31 @@ def train_model():
                 choice = choice.to(device_type)
                 index=randint(0,num_movies-1)
                 choice[index]=w2i_movies[imdb_id]
+                try:
+                    plot_indexed = convert_knowledge(plot)
+                    comment_indexed = convert_knowledge(comment)
+                    if (count % 60 == 0 or count % 151 == 0 or count % 153 == 0):
+                        continue
+                    review_indexed = convert_knowledge([item for sublist in review for item in sublist])
+                    # knowledge_base = torch.cat((torch.cat((plot_indexed,comment_indexed)), review_indexed))
 
-                plot_indexed = convert_knowledge(plot)
-                comment_indexed = convert_knowledge(comment)
-                if(count%60==0 or count%151==0 or count%153==0):
-                    continue
-                review_indexed = convert_knowledge([item for sublist in review for item in sublist])
-                # knowledge_base = torch.cat((torch.cat((plot_indexed,comment_indexed)), review_indexed))
+                    knowledge_base = [plot_indexed, comment_indexed, review_indexed]
 
-                knowledge_base = [plot_indexed, comment_indexed, review_indexed]
+                    # negative sampling of 10
 
-                # negative sampling of 10
+                    model_vector, movie_vector = model.forward(choice, knowledge_base, num_movies)
 
-                model_vector,movie_vector = model.forward(choice, knowledge_base,num_movies)
+                    target = torch.tensor(-1, dtype=torch.float, device=device_type, requires_grad=False)
+                    target = target.repeat(num_movies)
+                    target[index] = 1
+                    loss = criterion(model_vector, movie_vector, target)
 
-                target = torch.tensor(-1, dtype=torch.float,device=device_type,requires_grad=False)
-                target=target.repeat(num_movies)
-                target[index]=1
-                loss = criterion(model_vector,movie_vector, target)
-
-
-                print(count,loss.item())
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
+                    print(count, loss.item())
+                    optimizer.zero_grad()
+                    loss.backward()
+                    optimizer.step()
+                except:
+                    print("Error Occured")
 
         save_model(epoch, loss, optimizer, model)
 
