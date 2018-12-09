@@ -13,10 +13,12 @@ import math
 import numpy as np
 from random import randint
 from nltk.corpus import stopwords
+from random import shuffle
+
 stopwords_list = stopwords.words('english')
 
-device_type="cpu"
-num_movies=20
+device_type="cuda:0"
+num_movies=10
 def load_index_files():
     with open('w2i.json') as f:
         w2i = json.load(f)
@@ -67,12 +69,13 @@ def convert_knowledge(knowledge):
             indx_data = convert_sentence_to_index(data)
             le += indx_data.shape[0]
             know_data.append(indx_data)
-        index_data = torch.zeros(le, dtype=torch.long,device=device_type)
+        # index_data = torch.zeros(le, dtype=torch.long,device=device_type)
+        index_data = know_data
         le = 0
-        for data in know_data:
-            for i in range(0, data.shape[0]):
-                index_data[le] = data[i]
-                le += 1
+        # for data in know_data:
+        #     for i in range(0, data.shape[0]):
+        #         index_data[le] = data[i]
+        #         le += 1
     else:
         data = '<SOS> ' + knowledge + ' <EOS>'
         index_data = convert_sentence_to_index(data)
@@ -183,16 +186,17 @@ def train_model():
     criterion = nn.CosineEmbeddingLoss()
     count = 0
     for epoch in range(200):
+        shuffle(movie_data)
         for data in movie_data:
             count+=1
             # TODO ALSO FOR DECODER AND OTHER ENCODERS?
-            movie = movie_data[data]
-            plot = movie.plot
-            comment = movie.comments
-            imdb_id = movie.imdb_id
-            review = movie.review
-            comment = churn_comments(comment)
-            review = churn_review(review)
+            # movie = movie_data[data]
+            # comment = movie.comments
+            imdb_id = data[0]
+            plot = data[1]
+            # review = movie.review
+            # comment = churn_comments(comment)
+            # review = churn_review(review)
 
             if '<p>' not in imdb_id:
                 ##imdb_id = torch.tensor(w2i_movies[imdb_id],device=device_type)
@@ -202,16 +206,13 @@ def train_model():
                 index=randint(0,num_movies-1)
                 choice[index]=w2i_movies[imdb_id]
                 plot_indexed = convert_knowledge(plot)
-                comment_indexed = convert_knowledge(comment)
-
-                review_indexed = convert_knowledge([item for item in review])
+                # comment_indexed = convert_knowledge(comment)
+                # review_indexed = convert_knowledge([item for item in review])
                 # knowledge_base = torch.cat((torch.cat((plot_indexed,comment_indexed)), review_indexed))
-
-                knowledge_base = [plot_indexed, comment_indexed, review_indexed]
+                # knowledge_base = [plot_indexed, comment_indexed, review_indexed]
 
                 # negative sampling of 10
-
-                model_vector, movie_vector = model.forward(choice, knowledge_base, num_movies)
+                model_vector, movie_vector = model.forward(choice, plot_indexed, num_movies)
 
                 target = torch.tensor(-1, dtype=torch.float, device=device_type, requires_grad=False)
                 target = target.repeat(num_movies)
@@ -222,7 +223,7 @@ def train_model():
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
-
+        print("********************** epoch finished **********************")
         save_model(epoch, loss, optimizer, model)
 
 def get_max_value(dict):

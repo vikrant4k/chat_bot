@@ -2,13 +2,16 @@ import json
 from pprint import pprint
 from movie_data import MovieData,Chat
 import pickle
+import nltk.tokenize.punkt
 data=''
-with open('train_data.json') as f:
+with open('/home/juan/data/main_data/train_data.json') as f:
     data = json.load(f)
 key=''
 movie={}
+sentence_id=[]
 tot=0
 
+tokenizer = nltk.data.load('/home/juan/Downloads/punkt/english.pickle')
 document_keys=['plot','review','comments']
 other_keys=['movie_name','spans','chat']
 w2i={}
@@ -37,7 +40,7 @@ def clean_data(data):
 
 def clear_quotes(data):
     if isinstance(data,str):
-        data=[data]
+        data= tokenizer.tokenize(data)
 
     for i in range(0, len(data)):
         val = data[i]
@@ -52,6 +55,8 @@ def clear_quotes(data):
         val = val.replace(",", "")
         val=val.replace("*","")
         val = val.replace("=", "")
+        val = val.replace("-:", "")
+        val = val.replace("http://", "")
         val=val.lower()
         data[i] = val
     return data
@@ -175,14 +180,25 @@ data=clean_data(data)
 create_word_frequency(data)
 create_word_to_ind(data)
 convert_data_to_obj(data)
-with open('w_freq.json', 'w') as fp:
-    json.dump(dic_freq, fp)
-with open('w2i.json', 'w') as fp:
-    json.dump(w2i, fp)
-with open('i2w.json', 'w') as fp:
-    json.dump(i2w, fp)
+for element in movie:
+    for sentence in movie[element].plot:
+        if sentence != '{}' and sentence != 'r16':
+            sentence_id.append((element, sentence))
+    for sentence in movie[element].comments:
+        if sentence != '{}' and sentence != 'r16':
+            sentence_id.append((element, sentence))
+    for sentence in movie[element].review:
+        if sentence != '{}' and sentence != 'r16':
+            sentence_id.append((element, sentence))
+
+# with open('w_freq.json', 'w') as fp:
+#     json.dump(dic_freq, fp)
+# with open('w2i_review_comments_fact.json', 'w') as fp:
+#     json.dump(w2i, fp)
+# with open('i2w_review_comments_fact.json', 'w') as fp:
+#     json.dump(i2w, fp)
 with open('movie_data.pkl', 'wb') as output:
-     pickle.dump(movie, output, pickle.HIGHEST_PROTOCOL)
+     pickle.dump(sentence_id, output, pickle.HIGHEST_PROTOCOL)
 ##print(key['documents']['review'])
 ##print(key['documents']['fact_table'])
 ##print(key['documents']['comments']) array

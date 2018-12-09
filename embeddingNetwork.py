@@ -29,26 +29,27 @@ class Encoder(nn.Module):
 
     def forward(self, movie_index, knowledge_base,num_movies):
         self.hidden_plot = self.init_hidden()
-        self.hidden_comments = self.init_hidden()
-        self.hidden_review = self.init_hidden()
+        # self.hidden_comments = self.init_hidden()
+        # self.hidden_review = self.init_hidden()
 
-        plot = knowledge_base[0]
-        comments = knowledge_base[1]
-        review = knowledge_base[2]
+        plot = knowledge_base
+        # plot = knowledge_base[0]
+        # comments = knowledge_base[1]
+        # review = knowledge_base[2]
         embedded_movie = self.movie_embedding(movie_index)
         embedded_plot = self.word_embedding(plot)
-        embedded_comment = self.word_embedding(comments)
-        embedded_review = self.word_embedding(review)
+        # embedded_comment = self.word_embedding(comments)
+        # embedded_review = self.word_embedding(review)
 
         lstm_out_plot, self.hidden_plot = self.lstm_plot(embedded_plot.view(len(plot), 1, -1), self.hidden_plot)
-        lstm_out_comments, self.hidden_comments = self.lstm_comments(embedded_comment.view(len(comments), 1, -1), self.hidden_comments)
-        lstm_out_review, self.hidden_review = self.lstm_review(embedded_review.view(len(review), 1, -1), self.hidden_review)
+        # lstm_out_comments, self.hidden_comments = self.lstm_comments(embedded_comment.view(len(comments), 1, -1), self.hidden_comments)
+        # lstm_out_review, self.hidden_review = self.lstm_review(embedded_review.view(len(review), 1, -1), self.hidden_review)
 
         lstm_out_plot = self.linear_plot(lstm_out_plot)
-        lstm_out_comments = self.linear_comments(lstm_out_comments)
-        lstm_out_review = self.linear_review(lstm_out_review)
+        # lstm_out_comments = self.linear_comments(lstm_out_comments)
+        # lstm_out_review = self.linear_review(lstm_out_review)
 
-        lstm_out_kb = lstm_out_plot[-1] + lstm_out_comments[-1]  + lstm_out_review[-1]
+        lstm_out_kb = lstm_out_plot[-1]
         lstm_out_kb=lstm_out_kb.repeat(num_movies,1)
         ##cosine_similarity=F.cosine_similarity(lstm_out_kb,embedded_movie)
 
