@@ -12,8 +12,10 @@ from collections import deque
 import math
 import numpy as np
 from random import randint
+from nltk.corpus import stopwords
+stopwords_list = stopwords.words('english')
 
-device_type="cuda:0"
+device_type="cpu"
 num_movies=20
 def load_index_files():
     with open('w2i.json') as f:
@@ -22,7 +24,11 @@ def load_index_files():
         i2w = json.load(f)
     with open('w_freq.json') as f:
         w_freq = json.load(f)
-    return w2i, i2w, w_freq
+    with open('w2i_review_comments_plot.json') as f:
+        w2i_rpc = json.load(f)
+    with open('i2w_review_comments_plot.json') as f:
+        i2w_rpc = json.load(f)
+    return w2i, i2w, w_freq, w2i_rpc, i2w_rpc
 
 
 def create_vocab_distributions():
@@ -77,10 +83,11 @@ def convert_knowledge(knowledge):
 
 def convert_sentence_to_index(sentence):
     sent_arr = sentence.split()
+    sent_arr = [word for word in sent_arr if word not in stopwords_list]
     sent_indx = torch.zeros(len(sent_arr), dtype=torch.long,device=device_type)
     sent_indx = sent_indx
     for i in range(0, len(sent_arr)):
-        sent_indx[i] = w2i[sent_arr[i]]
+        sent_indx[i] = w2i_rpc[sent_arr[i]]
     return sent_indx
 
 
@@ -111,7 +118,7 @@ def load_movie_indicies():
         i2w_movies = json.load(f)
     return w2i_movies, i2w_movies
 
-w2i,i2w,w_freq=load_index_files()
+w2i,i2w,w_freq, w2i_rpc, i2w_rpc=load_index_files()
 w2i_movies, i2w_movies= load_movie_indicies()
 movie_data=load_movie_data()
 prob_vocab=create_vocab_distributions()
@@ -160,7 +167,7 @@ def train_model():
     start_sent = '<SOS>'
     ##start_index = convert_sentence_to_index(start_sent)
     max_val = 0
-    for key in i2w:
+    for key in i2w_rpc:
         temp_val = int(key)
         if (max_val < temp_val):
             max_val = temp_val
