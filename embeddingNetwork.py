@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
-
+import torch.nn.functional as F
+device_type="cuda:0"
 class Encoder(nn.Module):
 
     def __init__(self, hidden_dim, embedding_dim, vocab_size, no_of_movies):
@@ -22,10 +23,11 @@ class Encoder(nn.Module):
 
 
     def init_hidden(self):
-        return (torch.zeros(2, 1, self.hidden_dim),
-                    torch.zeros(2, 1, self.hidden_dim))
+        init_hidden = (torch.zeros(2, 1, self.hidden_dim, device=device_type),
+                       torch.zeros(2, 1, self.hidden_dim, device=device_type))
+        return init_hidden
 
-    def forward(self, movie_index, knowledge_base):
+    def forward(self, movie_index, knowledge_base,num_movies):
         self.hidden_plot = self.init_hidden()
         self.hidden_comments = self.init_hidden()
         self.hidden_review = self.init_hidden()
@@ -33,7 +35,6 @@ class Encoder(nn.Module):
         plot = knowledge_base[0]
         comments = knowledge_base[1]
         review = knowledge_base[2]
-
         embedded_movie = self.movie_embedding(movie_index)
         embedded_plot = self.word_embedding(plot)
         embedded_comment = self.word_embedding(comments)
@@ -48,12 +49,7 @@ class Encoder(nn.Module):
         lstm_out_review = self.linear_review(lstm_out_review)
 
         lstm_out_kb = lstm_out_plot[-1] + lstm_out_comments[-1]  + lstm_out_review[-1]
+        lstm_out_kb=lstm_out_kb.repeat(num_movies,1)
+        ##cosine_similarity=F.cosine_similarity(lstm_out_kb,embedded_movie)
 
-        network_out = torch.matmul(lstm_out_kb[-1], embedded_movie.view(-1,1))
-
-        lstm_norm = (torch.sqrt(torch.matmul(lstm_out_kb[-1].view(1,-1),lstm_out_kb[-1].view(-1,1)))).detach()
-        lstm_embed_norm = (torch.sqrt(torch.matmul(embedded_movie.view(1,-1),embedded_movie.view(-1,1)))).detach()
-
-        network_out = network_out / (lstm_norm*lstm_embed_norm)
-
-        return network_out, lstm_out_kb, lstm_norm
+        return lstm_out_kb,embedded_movie

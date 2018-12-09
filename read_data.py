@@ -3,7 +3,7 @@ from pprint import pprint
 from movie_data import MovieData,Chat
 import pickle
 data=''
-with open('train_data.json') as f:
+with open('../train_data.json') as f:
     data = json.load(f)
 key=''
 movie={}

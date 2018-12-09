@@ -11,7 +11,10 @@ import torch.optim as optim
 from collections import deque
 import math
 import numpy as np
+from random import randint
 
+device_type="cuda:0"
+num_movies=20
 def load_index_files():
     with open('w2i.json') as f:
         w2i = json.load(f)
@@ -29,7 +32,7 @@ def create_vocab_distributions():
         if (max_val < temp_val):
             max_val = temp_val
     #prob_vocab = torch.zeros(max_val + 1, requires_grad=False, device="cuda:0")
-    prob_vocab = torch.zeros(max_val + 1, requires_grad=False)
+    prob_vocab = torch.zeros(max_val + 1, requires_grad=False,device=device_type)
     total_count = 0
     for key in w_freq:
         total_count = total_count + w_freq[key]
@@ -58,7 +61,7 @@ def convert_knowledge(knowledge):
             indx_data = convert_sentence_to_index(data)
             le += indx_data.shape[0]
             know_data.append(indx_data)
-        index_data = torch.zeros(le, dtype=torch.long)
+        index_data = torch.zeros(le, dtype=torch.long,device=device_type)
         le = 0
         for data in know_data:
             for i in range(0, data.shape[0]):
@@ -74,7 +77,7 @@ def convert_knowledge(knowledge):
 
 def convert_sentence_to_index(sentence):
     sent_arr = sentence.split()
-    sent_indx = torch.zeros(len(sent_arr), dtype=torch.long)
+    sent_indx = torch.zeros(len(sent_arr), dtype=torch.long,device=device_type)
     sent_indx = sent_indx
     for i in range(0, len(sent_arr)):
         sent_indx[i] = w2i[sent_arr[i]]
@@ -132,14 +135,14 @@ def save_model(epoch, loss, optimizer, model):
         'model_state_dict': model.state_dict(),
         'optimizer_state_dict': optimizer.state_dict(),
         'loss': loss
-    }, "model.pkl")
+    }, "model_movie.pkl")
 
 
 def load_model(max_val):
     model = Encoder(256, 64,  max_val + 1, prob_vocab)
     optimizer = optim.Adam(model.parameters())
 
-    checkpoint = torch.load("model.pkl")
+    checkpoint = torch.load("model_movie.pkl")
     model.load_state_dict(checkpoint['model_state_dict'])
     optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
     epoch = checkpoint['epoch']
@@ -149,13 +152,13 @@ def load_model(max_val):
 
 def train_model():
     model_exist = False
-    lamb = 1e-4
-    prob = 0.6
-    ts = time.time()
-    st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
-    txt_file = open(st, "w")
+    ##lamb = 1e-4
+    ##prob = 0.6
+    ##ts = time.time()
+    ##st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
+    ##txt_file = open(st, "w")
     start_sent = '<SOS>'
-    start_index = convert_sentence_to_index(start_sent)
+    ##start_index = convert_sentence_to_index(start_sent)
     max_val = 0
     for key in i2w:
         temp_val = int(key)
@@ -163,71 +166,60 @@ def train_model():
             max_val = temp_val
     if (model_exist):
         model, optimizer, epoch, loss = load_model(max_val)
-        #model.cuda()
+        model.cuda()
         optimizer = optim.Adam(model.parameters())
     else:
         no_of_movies = get_max_value(i2w_movies)
         model = Encoder(256, 64, max_val + 1, no_of_movies)
-        #model.cuda()
+        model.cuda()
         optimizer = optim.Adam(model.parameters())
-    criterion = nn.MSELoss()
+    criterion = nn.CosineEmbeddingLoss()
     count = 0
-    chats_complted = 0
     for epoch in range(200):
         for data in movie_data:
-
+            count+=1
             # TODO ALSO FOR DECODER AND OTHER ENCODERS?
             movie = movie_data[data]
             plot = movie.plot
             comment = movie.comments
             imdb_id = movie.imdb_id
             review = movie.review
+            comment = churn_comments(comment)
+            review = churn_review(review)
 
             if '<p>' not in imdb_id:
-                imdb_id = torch.tensor(w2i_movies[imdb_id])
+                ##imdb_id = torch.tensor(w2i_movies[imdb_id],device=device_type)
+                choice = np.random.choice(no_of_movies, num_movies)
+                choice = torch.from_numpy(choice).long()
+                choice = choice.to(device_type)
+                index=randint(0,num_movies-1)
+                choice[index]=w2i_movies[imdb_id]
 
                 plot_indexed = convert_knowledge(plot)
                 comment_indexed = convert_knowledge(comment)
+                if(count%60==0 or count%151==0 or count%153==0):
+                    continue
                 review_indexed = convert_knowledge([item for sublist in review for item in sublist])
                 # knowledge_base = torch.cat((torch.cat((plot_indexed,comment_indexed)), review_indexed))
 
                 knowledge_base = [plot_indexed, comment_indexed, review_indexed]
 
                 # negative sampling of 10
-                choice = np.random.choice(no_of_movies, 10)
 
-                output, lstm_out_kb, lstm_norm = model.forward(imdb_id, knowledge_base)
+                model_vector,movie_vector = model.forward(choice, knowledge_base,num_movies)
 
-                target = torch.tensor(1, dtype=torch.float)
+                target = torch.tensor(-1, dtype=torch.float,device=device_type,requires_grad=False)
+                target=target.repeat(num_movies)
+                target[index]=1
+                loss = criterion(model_vector,movie_vector, target)
 
-                loss = criterion(output.squeeze(), target)
 
-                choice = torch.from_numpy(choice).long()
-                neg_embeds = model.movie_embedding(choice)
-
-                neg_samples_losses = 0
-
-                neg_target = torch.tensor(-1, dtype=torch.float)
-                for ng in neg_embeds:
-                    #print(ng)
-                    network_out = torch.matmul(lstm_out_kb, ng.view(-1, 1))
-
-                    lstm_embed_norm = (torch.sqrt(torch.matmul(ng.view(1, -1), ng.view(-1,1)))).detach()
-
-                    network_out = network_out / (lstm_norm * lstm_embed_norm)
-
-                    neg_loss = criterion(network_out.squeeze(), neg_target)
-
-                    neg_samples_losses += neg_loss
-
-                print(output)
+                print(count,loss.item())
                 optimizer.zero_grad()
-                loss += neg_samples_losses
                 loss.backward()
                 optimizer.step()
 
-
-        torch.save(model.state_dict(), "model/")
+        save_model(epoch, loss, optimizer, model)
 
 def get_max_value(dict):
     max_val = 0
