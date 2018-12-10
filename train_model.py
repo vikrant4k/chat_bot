@@ -127,7 +127,7 @@ def load_model(max_val):
 
 
 def train_model():
-    model_exist=False
+    model_exist=True
     lamb=1e-4
     prob=0.6
     ts = time.time()
@@ -154,7 +154,7 @@ def train_model():
     for epoch in range(200):
         for data in movie_data:
             count = count + 1
-            if(count>0):
+            if(count>300):
                 movie = movie_data[data]
                 chats = movie.chat
                 plot = movie.plot
@@ -257,7 +257,7 @@ def train_model():
                 txt_file.write("\n")
                 txt_file.write("Chats Completed " + str(chats_complted))
                 txt_file.write("\n")
-                if (count % 100 == 0):
+                if (count % 30 == 0):
                     save_model(epoch, loss, optimizer, model)
 
         print("Epoch Completed")
