@@ -15,6 +15,20 @@ class MovieData:
 
 class Chat:
 
-    def __init__(self,chat_id,chat):
+    def __init__(self,chat_id,chats):
+        self.chat=[]
+        if(len(chats)%2!=0):
+            le=len(chats)-1
+        else:
+            le=len(chats)
         self.chat_id=chat_id
-        self.chat=chat
+        self.encoder_chat=[]
+        self.decoder_chat=[]
+        try:
+            for i in range(0, le, 2):
+                self.encoder_chat.append(chats[i])
+                self.decoder_chat.append(chats[i + 1])
+            self.chat.append(self.encoder_chat)
+            self.chat.append(self.decoder_chat)
+        except:
+            print("Error")
