@@ -184,6 +184,7 @@ def train_model():
     chats_complted=0
     for epoch in range(200):
         for data in movie_data:
+            tot_loss=0
             count = count + 1
             if(count>0):
                 movie = movie_data[data]
@@ -253,10 +254,11 @@ def train_model():
                         ##print(output.view(output.shape[0]*output.shape[1],output.shape[2]).shape,org_word_index[:-1].shape)
                         loss = criterion(output.view(output.shape[0]*output.shape[1],output.shape[2]), org_word_index.view(output.shape[0]*output.shape[1])) + att_sum
                         loss=torch.sum(loss)
-                        print(loss.item())
+                        tot_loss+=loss.item()
                         model.zero_grad()
                         loss.backward()
                         optimizer.step()
+                print(tot_loss)
         print("Epoch Completed")
     txt_file.close()
 train_model()
