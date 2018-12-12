@@ -11,6 +11,7 @@ import torch.optim as optim
 from collections import deque
 import math
 import numpy as np
+device_type="cpu"
 def load_index_files():
     with open('w2i.json') as f:
          w2i= json.load(f)
@@ -26,7 +27,7 @@ def create_vocab_distributions():
         temp_val = int(key)
         if (max_val < temp_val):
             max_val = temp_val
-    prob_vocab=torch.zeros(max_val+1,requires_grad=False,device="cuda:0")
+    prob_vocab=torch.zeros(max_val+1,requires_grad=False,device=device_type)
     total_count=0
     for key in w_freq:
         total_count=total_count+w_freq[key]
@@ -54,7 +55,7 @@ def convert_knowledge(knowledge):
             indx_data=convert_sentence_to_index(data)
             le+=indx_data.shape[0]
             know_data.append(indx_data)
-        index_data=torch.zeros(le,dtype=torch.long,device="cuda:0")
+        index_data=torch.zeros(le,dtype=torch.long,device=device_type)
         le=0
         for data in know_data:
             for i in range(0,data.shape[0]):
@@ -69,8 +70,7 @@ def convert_knowledge(knowledge):
 
 def convert_sentence_to_index(sentence):
     sent_arr=sentence.split()
-    sent_indx=torch.zeros(len(sent_arr),dtype=torch.long)
-    sent_indx=sent_indx.cuda()
+    sent_indx=torch.zeros(len(sent_arr),dtype=torch.long,device=device_type)
     for i in range(0,len(sent_arr)):
         sent_indx[i]=w2i[sent_arr[i]]
     return sent_indx
@@ -127,12 +127,12 @@ def load_model(max_val):
 
 
 def train_model():
-    model_exist=True
+    model_exist=False
     lamb=1e-4
     prob=0.6
     ts = time.time()
-    st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
-    txt_file=open(st,"w")
+    st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d-%H:%M:%S')
+    txt_file=open("eedfws","w")
     start_sent='<SOS>'
     start_index=convert_sentence_to_index(start_sent)
     max_val=0
@@ -146,7 +146,8 @@ def train_model():
         optimizer = optim.Adam(model.parameters())
     else:
         model = Model(256, max_val + 1, prob_vocab)
-        model.cuda()
+        model.to(device_type)
+        ##model.cuda()
         optimizer = optim.Adam(model.parameters())
     criterion = nn.CrossEntropyLoss()
     count=0

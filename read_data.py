@@ -14,16 +14,17 @@ other_keys=['movie_name','spans','chat']
 w2i={}
 i2w={}
 dic_freq={}
+w2i['<PAD>']=0
+w2i['<SOS>'] = 1
+w2i['<EOS>'] = 2
+w2i['unknown']=3
 
-w2i['<SOS>'] = 0
-w2i['<EOS>'] = 1
-w2i['unknown']=2
+i2w[0]='<PAD>'
+i2w[1] = '<SOS>'
+i2w[2] = '<EOS>'
+i2w[3]='unknown'
 
-i2w[0] = '<SOS>'
-i2w[1] = '<EOS>'
-i2w[2]='unknown'
-
-index=3
+index=4
 
 def clean_data(data):
     for key in data:
