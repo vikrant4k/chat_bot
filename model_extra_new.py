@@ -20,12 +20,20 @@ class Encoder(nn.Module):
                     torch.zeros(2, batch_size, self.hidden_dim,device=device))
         return init_hidden
 
-    def forward(self, sentence):
+    def forward(self, sentence,enc_lengths):
+        sorted_lengths,sorted_ids=torch.sort(enc_lengths,descending=True)
         embeds = self.word_embedding(sentence)
-        lstm_out, self.hidden = self.lstm(
-            embeds, self.hidden)#.view(len(sentence), 1, -1)
-        return lstm_out, self.hidden
-
+        embeds=embeds[sorted_ids]
+        packed_input=nn.utils.rnn.pack_padded_sequence(embeds,sorted_lengths,batch_first=True)
+        packed_output,hidden=self.lstm(packed_input,self.hidden)
+        outputs,_=nn.utils.rnn.pad_packed_sequence(packed_output,batch_first=True)
+        ##lstm_out, self.hidden = self.lstm(
+        ##    packed_input, self.hidden)#.view(len(sentence), 1, -1)
+        ##return lstm_out, self.hidden
+        _,reversed_idx=torch.sort(sorted_ids)
+        outputs=outputs[reversed_idx]
+        ##self.hidden=self.hidden[:,reversed_idx]
+        return outputs,self.hidden
 class Decoder(nn.Module):
 
     def __init__(self, embedding_dim, hidden_dim, word_embedding, vocab_size):
@@ -39,10 +47,14 @@ class Decoder(nn.Module):
         return (encoder_hidden_state.transpose(1,0),
                     torch.zeros(1, batch_size, self.hidden_dim,device=device))
 
-    def forward(self,next_word_embedding):
-        embeds = self.word_embedding(next_word_embedding).squeeze(1)
-
-        lstm_out, self.hidden = self.lstm(embeds,self.hidden )
+    def forward(self,next_word_embedding,dec_lengths):
+        dec_lengths=torch.ones(next_word_embedding.shape[0]).to(device)
+        sorted_lengths, sorted_ids = torch.sort(dec_lengths, descending=True)
+        embeds = self.word_embedding(next_word_embedding)
+        embeds = embeds[sorted_ids]
+        packed_input = nn.utils.rnn.pack_padded_sequence(embeds, sorted_lengths, batch_first=True)
+        ##embeds = self.word_embedding(next_word_embedding).squeeze(1)
+        lstm_out, self.hidden = self.lstm(packed_input,self.hidden )
 
         ##lstm_out = self.linear(lstm_out)
 
@@ -144,34 +156,47 @@ class Model(nn.Module):
 
 
 
-    def forward(self,enc_sent_indx,dec_sent_index,start_index,isTrain,know_hidd,isRely,plot_sent_indx_arr,review_sent_indx_arr,comment_sent_indx_arr):
+    def forward(self,enc_sent_indx,dec_sent_index,start_index,isTrain,know_hidd,isRely,plot_sent_indx_arr,review_sent_indx_arr,
+                comment_sent_indx_arr,enc_lengths,dec_lengths):
         self.encoder.hidden = self.encoder.init_hidden() #TODO WE CREATE HIDDEN HERE ACTUALLY
         att_sum=None
-        lstm_out, hidden_state=self.encoder.forward(enc_sent_indx)
+        lstm_out, hidden_state=self.encoder.forward(enc_sent_indx,enc_lengths)
         ini_dec_hidd_state = lstm_out[:,-1,:].unsqueeze(1)
         self.decoder.hidden=self.decoder.init_hidden(ini_dec_hidd_state)
         encoder_out= lstm_out#.view(lstm_out.shape[0], 1, init_size*2)\
         out_word_list = torch.zeros(batch_size,dec_sent_index.shape[1],self.vocab_size,device=device)
         if(isTrain):
+            mask_encoders=torch.ones(lstm_out.shape[0],lstm_out.shape[1]).to(device)
+            mask_decoder=torch.ones(lstm_out.shape[0],dec_sent_index.shape[1]).to(device)
+            for k in range(0, len(dec_lengths)):
+                mask_decoder[k] = torch.cat(
+                    (torch.ones(dec_lengths[k]), torch.zeros(dec_sent_index.shape[1] - dec_lengths[k])))
+            for k in range(0,len(enc_lengths)):
+                mask_encoders[k]=torch.cat((torch.ones(enc_lengths[k]),torch.zeros(lstm_out.shape[1]-enc_lengths[k])))
+            mask_encoders=mask_encoders.view(mask_encoders.shape[0],mask_encoders.shape[1],1)
+            lstm_out=lstm_out*mask_encoders
             coverage=torch.zeros(batch_size,dec_sent_index.shape[1],lstm_out.shape[1],device=device)
             current_attention=torch.zeros(batch_size,dec_sent_index.shape[1],lstm_out.shape[1],device=device)
             ##print(coverage.shape,current_attention.shape)
             for i in range(-1,len(dec_sent_index)-1):
                 if(i==-1):
                     index=start_index
-                    out, hidden_state=self.decoder.forward(start_index)
+                    out, hidden_state=self.decoder.forward(start_index,dec_lengths)
 
                 else:
                     if(isRely):
                         next_word=dec_sent_index[:,i]
-                        next_word=next_word.reshape(next_word.shape[0],1,1)
+                        next_word=next_word.reshape(next_word.shape[0],1)
                         ##out, hidden_state = self.decoder.forward(dec_sent_index[i])
-                        out, hidden_state = self.decoder.forward(next_word)
+                        out, hidden_state = self.decoder.forward(next_word,dec_lengths)
                     else:
                         ##probs = F.softmax(out_word_data, dim=0)
                         ##index = torch.argmax(probs)
                         out, hidden_state = self.decoder.forward(dec_sent_index[i])
                 decoder_out=hidden_state[0]
+                current_state_mask=mask_decoder[:,i+1]
+                current_state_mask=current_state_mask.view(1,batch_size,1)
+                decoder_out=decoder_out*current_state_mask
                 resource_context_plot=self.plot_knowledge.calculate_resource_attention(know_hidd[0],decoder_out)
                 resource_context_rev = self.rev_knowledge.calculate_resource_attention(know_hidd[1], decoder_out)
                 resource_context_com = self.com_knowledge.calculate_resource_attention(know_hidd[2], decoder_out)

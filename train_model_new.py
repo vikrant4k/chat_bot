@@ -152,7 +152,7 @@ def preprocess(data1, data2, PAD=0):
     seq_dec = [seq + [2]+ [PAD] * (max_dec - len(seq)) for seq in dec]    
     # print(seq_dec, seq_enc)
     seq_enc, seq_dec = np.array(seq_enc), np.array(seq_dec)
-    print(seq_enc.shape, seq_dec.shape)
+    ##print(seq_enc.shape, seq_dec.shape)
     return np.array(seq_enc), np.array(seq_dec)
 
 
@@ -222,25 +222,35 @@ def train_model():
                             for k in range(diff):
                                 enc.append("<PAD>")
                                 dec.append("<PAD>")
+                        enc_lengths=[]
+                        dec_lengths=[]
+                        for ea in enc:
+                            enc_lengths.append(len(ea.split()))
+                        for da in dec:
+                            dec_lengths.append(len(da.split()))
                         input_sent, dec_sent_index,  = preprocess(enc,dec)
+                        enc_lengths = torch.tensor(enc_lengths).long().to(device)
+                        dec_lengths = torch.tensor(dec_lengths).long().to(device)
                         input_sent = torch.tensor(input_sent).long().to(device)
                         dec_sent_index = torch.tensor(dec_sent_index).long().to(device)
+                        ##print(input_sent.shape,dec_sent_index.shape)
+                        ##print(enc_lengths,dec_lengths)
                         know_hidd = model.forward_knowledge_movie(plot_sent_indx_arr, review_sent_indx_arr, comment_sent_indx_arr)
                         isRely = True
-                        start_index = torch.tensor([1]).repeat(batch_size,1,1).long().to(device)
+                        start_index = torch.tensor([1]).repeat(batch_size,1).long().to(device)
                         output, coverage, current_attention = model.forward(input_sent, dec_sent_index,
                                                                                         start_index,
                                                                                         True, know_hidd,
                                                                                         isRely, plot_sent_indx_arr,
                                                                                         review_sent_indx_arr,
-                                                                                         comment_sent_indx_arr)
+                                                                                         comment_sent_indx_arr,enc_lengths,dec_lengths)
                         org_word_index=dec_sent_index.clone()
                         for j in range(0,dec_sent_index.shape[1]):
                             if (j == 0):
                                 att_sum = torch.sum(torch.min(coverage[:,j,:], current_attention[:,j,:]),dim=1)
                             else:
                                 att_sum = torch.sum(torch.min(coverage[:,j,:], current_attention[:,j,:]),dim=1) + att_sum
-                        print(output.view(output.shape[0]*output.shape[1],output.shape[2]).shape,org_word_index[:-1].shape)
+                        ##print(output.view(output.shape[0]*output.shape[1],output.shape[2]).shape,org_word_index[:-1].shape)
                         loss = criterion(output.view(output.shape[0]*output.shape[1],output.shape[2]), org_word_index.view(output.shape[0]*output.shape[1])) + att_sum
                         loss=torch.sum(loss)
                         print(loss.item())

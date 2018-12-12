@@ -102,7 +102,7 @@ def helper_word_to_index(values):
                     i2w[str(index)] = word
                     index = index + 1
                 else:
-                    w2i[word] = 2
+                    w2i[word] = 3
 
 
 def convert_data_to_obj(data):
