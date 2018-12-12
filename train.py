@@ -20,9 +20,9 @@ stopwords_list = stopwords.words('english')
 device_type="cuda:0"
 num_movies=10
 def load_index_files():
-    with open('w2i.json') as f:
+    with open('w2i_review_comments_plot.json') as f:
         w2i = json.load(f)
-    with open('i2w.json') as f:
+    with open('i2w_review_comments_plot.json') as f:
         i2w = json.load(f)
     with open('w_freq.json') as f:
         w_freq = json.load(f)
@@ -90,7 +90,7 @@ def convert_sentence_to_index(sentence):
     sent_indx = torch.zeros(len(sent_arr), dtype=torch.long,device=device_type)
     sent_indx = sent_indx
     for i in range(0, len(sent_arr)):
-        sent_indx[i] = w2i_rpc[sent_arr[i]]
+        sent_indx[i] = w2i[sent_arr[i]]
     return sent_indx
 
 
@@ -170,7 +170,7 @@ def train_model():
     start_sent = '<SOS>'
     ##start_index = convert_sentence_to_index(start_sent)
     max_val = 0
-    for key in i2w_rpc:
+    for key in i2w:
         temp_val = int(key)
         if (max_val < temp_val):
             max_val = temp_val

@@ -56,7 +56,11 @@ def clear_quotes(data):
         val=val.replace("*","")
         val = val.replace("=", "")
         val = val.replace("-:", "")
-        val = val.replace("http://", "")
+        val = val.replace(":-", "")
+        val = val.replace("r#16", "")
+        val = val.replace("wham", "")
+        val = val.replace(":", "")
+        val = val.replace("http//www", "")
         val=val.lower()
         data[i] = val
     return data
@@ -191,12 +195,12 @@ for element in movie:
         if sentence != '{}' and sentence != 'r16':
             sentence_id.append((element, sentence))
 
-# with open('w_freq.json', 'w') as fp:
-#     json.dump(dic_freq, fp)
-# with open('w2i_review_comments_fact.json', 'w') as fp:
-#     json.dump(w2i, fp)
-# with open('i2w_review_comments_fact.json', 'w') as fp:
-#     json.dump(i2w, fp)
+with open('w_freq.json', 'w') as fp:
+    json.dump(dic_freq, fp)
+with open('w2i_review_comments_plot.json', 'w') as fp:
+    json.dump(w2i, fp)
+with open('i2w_review_comments_plot.json', 'w') as fp:
+    json.dump(i2w, fp)
 with open('movie_data.pkl', 'wb') as output:
      pickle.dump(sentence_id, output, pickle.HIGHEST_PROTOCOL)
 ##print(key['documents']['review'])
