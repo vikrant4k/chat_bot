@@ -222,8 +222,6 @@ def train_model():
                             for k in range(diff):
                                 enc.append("<PAD>")
                                 dec.append("<PAD>")
-                        deq.append(input_sent)
-                        deq.append(dec_sent_index)
                         input_sent, dec_sent_index,  = preprocess(enc,dec)
                         input_sent = torch.tensor(input_sent).long().to(device)
                         dec_sent_index = torch.tensor(dec_sent_index).long().to(device)
@@ -249,103 +247,6 @@ def train_model():
                         model.zero_grad()
                         loss.backward()
                         optimizer.step()
-
-
-
-
-                     
-                
-                #     for chat in chats:
-                #         chats_complted += 1
-                #         deq = deque(maxlen=2)
-                #         for i in range(0, len(chat.chat), 2):
-                #             if ((i + 1) < len(chat.chat)):
-                #                 encoder_sentence = chat.chat[i]  # TODO chat history
-                #                 decoder_sentence = chat.chat[i + 1]
-
-                #                 encoder_sentence = '<SOS> ' + encoder_sentence + ' <EOS>'
-                #                 decoder_sentence = decoder_sentence + ' <EOS>'
-                #                 enc_sent_indx = convert_sentence_to_index(encoder_sentence)
-                #                 dec_sent_index = convert_sentence_to_index(decoder_sentence)
-                #                 dec_sent_index=dec_sent_index.detach()
-                #                 deq_dec_sent_index = convert_sentence_to_index('<SOS> ' + decoder_sentence)
-                #                 if (len(dec_sent_index) < 350 and len(dec_sent_index) > 2):
-                #                     if (len(deq) > 0):
-                #                         input_sent = torch.cat((deq[0], deq[1], enc_sent_indx), dim=0)
-                #                     else:
-                #                         input_sent = enc_sent_indx
-                #                     know_hidd = model.forward_knowledge_movie(plot_sent_indx_arr, review_sent_indx_arr,
-                #                                                               comment_sent_indx_arr)
-                #                     ##prob_current = prob * math.exp(-lamb * chats_complted)
-                #                     ##select = np.random.choice([0, 1], p=[prob_current, 1 - prob_current])
-                #                     select = 0
-                #                     if (select == 0):
-                #                         isRely = True
-                #                     else:
-                #                         isRely = False
-                #                     output, coverage, current_attention = model.forward(input_sent, dec_sent_index,
-                #                                                                         start_index,
-                #                                                                         True, know_hidd,
-                #                                                                         isRely, plot_sent_indx_arr,
-                #                                                                         review_sent_indx_arr,
-                #                                                                         comment_sent_indx_arr)  # , plot_sent_indx)
-                #                     deq.append(enc_sent_indx)
-                #                     deq.append(deq_dec_sent_index)
-                #                     ##print(len(output))
-
-                #                     output_text = ""
-                #                     ##att_sum = torch.zeros(coverage.shape, device="cuda:0")
-                #                     ##org_word_index = torch.zeros(len(dec_sent_index), dtype=torch.long, device="cuda:0",
-                #                     ##                             requires_grad=False)
-                #                     org_word_index=dec_sent_index.clone()
-
-                #                     for j in range(0, len(dec_sent_index)):
-                #                     ##    org_word_index[j] = dec_sent_index[j]
-                #                     ##    if (chats_complted % 10 == 0):
-                #                     ##        index = torch.argmax(output[j])
-                #                     ##        output_text += (i2w[str(index.item())]) + " "
-
-                #                         if (j == 0):
-                #                             att_sum = torch.sum(torch.min(coverage[0], current_attention[0]))
-                #                         else:
-                #                             att_sum = torch.sum(torch.min(coverage[j], current_attention[j])) + att_sum
-                #                     loss = criterion(output, org_word_index) + att_sum
-                #                     tot_loss += loss.item()
-                #                     if (loss.item() < 90):
-                #                         ##print(loss.item())
-                #                         model.zero_grad()
-                #                         loss.backward()
-                #                         optimizer.step()
-                #                         """
-                #                         if (chats_complted%10 == 0):
-                #                             print(chats_complted)
-                #                             txt_file.write("Model: " + output_text.encode('utf-8').decode('utf-8'))
-                #                             txt_file.write("\n")
-                #                             txt_file.write("Encoder :" + encoder_sentence.encode('utf-8').decode('utf-8'))
-                #                             txt_file.write("\n")
-                #                             txt_file.write("Decoder :" + decoder_sentence.encode('utf-8').decode('utf-8'))
-                #                             txt_file.write("\n")
-                #                             if (isRely == False):
-                #                                 txt_file.write("is Rely False")
-                #                                 txt_file.write("\n")
-                #                         """
-                #                     else:
-                #                         h = 1
-                #                         ##print(loss.item())
-                #                         ##torch.cuda.empty_cache()
-                #                     loss = None
-                #                     know_hidd = None
-                # print(count,tot_loss / len(chats))
-                # att_sum = None
-                # coverage = None
-                # ##torch.cuda.empty_cache()
-                # txt_file.write("Movie Completed " + str(count))
-                # txt_file.write("\n")
-                # txt_file.write("Chats Completed " + str(chats_complted))
-                # txt_file.write("\n")
-                # if (count % 30 == 0):
-                #     save_model(epoch, loss, optimizer, model)
-
         print("Epoch Completed")
     txt_file.close()
 train_model()

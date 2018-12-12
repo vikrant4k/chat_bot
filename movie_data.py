@@ -26,7 +26,10 @@ class Chat:
         self.decoder_chat=[]
         try:
             for i in range(0, le, 2):
-                self.encoder_chat.append(chats[i])
+                if(i>=2):
+                    self.encoder_chat.append(chats[i-2]+" "+chats[i-1]+" "+chats[i])
+                else:
+                    self.encoder_chat.append(chats[i])
                 self.decoder_chat.append(chats[i + 1])
             self.chat.append(self.encoder_chat)
             self.chat.append(self.decoder_chat)
