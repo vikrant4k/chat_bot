@@ -245,8 +245,26 @@ def train_model():
                                                                                         isRely, plot_sent_indx_arr,
                                                                                         review_sent_indx_arr,
                                                                                          comment_sent_indx_arr,enc_lengths,dec_lengths)
+
                         org_word_index=dec_sent_index.clone()
+                        max_prob_index = torch.argmax(output, dim=1)
+                        batch_sentences = []
+
+                        for b in range(max_prob_index.shape[0]):
+                            sentence_str = ''
+                            actual_len = dec_lengths[b]
+                            for w in range(actual_len):
+                                word = i2w[str((max_prob_index[b][w]).item())]
+                                sentence_str += word+' '
+
+                            batch_sentences.append(sentence_str)
+
+                        print(batch_sentences)
+
+
+
                         for j in range(0,dec_sent_index.shape[1]):
+                            ##output_text += (i2w[str(index.item())]) + " "
                             if (j == 0):
                                 att_sum = torch.sum(torch.min(coverage[:,j,:], current_attention[:,j,:]),dim=1)
                             else:
@@ -254,6 +272,7 @@ def train_model():
                         ##print(output.view(output.shape[0]*output.shape[1],output.shape[2]).shape,org_word_index[:-1].shape)
                         loss = criterion(output.view(output.shape[0]*output.shape[1],output.shape[2]), org_word_index.view(output.shape[0]*output.shape[1])) + att_sum
                         loss=torch.sum(loss)
+                        print(loss.item())
                         tot_loss+=loss.item()
                         model.zero_grad()
                         loss.backward()

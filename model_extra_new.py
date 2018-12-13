@@ -44,8 +44,9 @@ class Decoder(nn.Module):
         ##self.linear = nn.Linear(hidden_dim, vocab_size)
 
     def init_hidden(self, encoder_hidden_state):
-        return (encoder_hidden_state.transpose(1,0),
-                    torch.zeros(1, batch_size, self.hidden_dim,device=device))
+        encoder_hidden_state=encoder_hidden_state.view(1,batch_size,encoder_hidden_state.shape[2])
+        return (encoder_hidden_state,
+                    torch.zeros(1, 2, self.hidden_dim,device=device))
 
     def forward(self,next_word_embedding,dec_lengths):
         dec_lengths=torch.ones(next_word_embedding.shape[0]).to(device)
@@ -55,10 +56,10 @@ class Decoder(nn.Module):
         packed_input = nn.utils.rnn.pack_padded_sequence(embeds, sorted_lengths, batch_first=True)
         ##embeds = self.word_embedding(next_word_embedding).squeeze(1)
         lstm_out, self.hidden = self.lstm(packed_input,self.hidden )
-
-        ##lstm_out = self.linear(lstm_out)
-
-        return lstm_out, self.hidden
+        outputs, _ = nn.utils.rnn.pad_packed_sequence(lstm_out, batch_first=True)
+        _, reversed_idx = torch.sort(sorted_ids)
+        outputs = outputs[reversed_idx]
+        return outputs, self.hidden
 
 class KnowledgeRNN(nn.Module):
 
@@ -86,7 +87,7 @@ class KnowledgeRNN(nn.Module):
         know_hidd = know_hidd.unsqueeze(0).repeat(batch_size,1,1)
         attention_input=torch.cat((know_hidd,decoder_temp),dim=2)
         attention_out=self.resource_attention.forward(attention_input)
-        attention_weights = F.softmax(attention_out, dim=0)
+        attention_weights = F.softmax(attention_out, dim=1)
         attention_weights=attention_weights.transpose(2,1)
         context_vector=torch.bmm(attention_weights, know_hidd)
         return context_vector
@@ -161,7 +162,9 @@ class Model(nn.Module):
         self.encoder.hidden = self.encoder.init_hidden() #TODO WE CREATE HIDDEN HERE ACTUALLY
         att_sum=None
         lstm_out, hidden_state=self.encoder.forward(enc_sent_indx,enc_lengths)
-        ini_dec_hidd_state = lstm_out[:,-1,:].unsqueeze(1)
+        ini_dec_hidd_state=torch.zeros(lstm_out.shape[0],1,lstm_out.shape[2])
+        for k in range(0,batch_size):
+            ini_dec_hidd_state[k]=lstm_out[k,enc_lengths[k]-1,:]
         self.decoder.hidden=self.decoder.init_hidden(ini_dec_hidd_state)
         encoder_out= lstm_out#.view(lstm_out.shape[0], 1, init_size*2)\
         out_word_list = torch.zeros(batch_size,dec_sent_index.shape[1],self.vocab_size,device=device)
@@ -178,7 +181,7 @@ class Model(nn.Module):
             coverage=torch.zeros(batch_size,dec_sent_index.shape[1],lstm_out.shape[1],device=device)
             current_attention=torch.zeros(batch_size,dec_sent_index.shape[1],lstm_out.shape[1],device=device)
             ##print(coverage.shape,current_attention.shape)
-            for i in range(-1,len(dec_sent_index)-1):
+            for i in range(-1,dec_sent_index.shape[1]-1):
                 if(i==-1):
                     index=start_index
                     out, hidden_state=self.decoder.forward(start_index,dec_lengths)
@@ -219,6 +222,7 @@ class Model(nn.Module):
                 ##print(coverage)
                 ##print(current_attention)
                 out_word_data=out_word_data.squeeze()
+                print(out_word_data.shape)
                 out_word_list[:,i+1,:]=out_word_data
                 ##probs = F.softmax(out_word_data, dim=0)
                 ##index = torch.argmax(out_word_data)
@@ -248,7 +252,7 @@ class Model(nn.Module):
         attention_input = torch.cat((encoder_out, decoder_temp), dim=2)
         ##for j in range(0,lstm_out.shape[0]):
         attention_out = self.decoder_attention.forward(attention_input)
-        attention_weights = F.softmax(attention_out, dim=0)
+        attention_weights = F.softmax(attention_out, dim=1)
         context = torch.bmm(attention_weights.transpose(2,1),lstm_out)
         ##context = torch.sum(mult, dim=1)
         concat = torch.cat((context,decoder_out,resource_context), 2)
