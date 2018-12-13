@@ -163,7 +163,7 @@ def train_model():
     prob=0.6
     ts = time.time()
     st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
-    txt_file=open("d","w")
+    txt_file=open("a.txt","w")
     start_sent='<SOS>'
     start_index=convert_sentence_to_index(start_sent)
     max_val=0
@@ -249,7 +249,7 @@ def train_model():
                         org_word_index=dec_sent_index.clone()
                         max_prob_index = torch.argmax(output, dim=1)
                         batch_sentences = []
-
+                        print(dec_lengths)
                         for b in range(max_prob_index.shape[0]):
                             sentence_str = ''
                             actual_len = dec_lengths[b]
@@ -258,8 +258,12 @@ def train_model():
                                 sentence_str += word+' '
 
                             batch_sentences.append(sentence_str)
-
-                        print(batch_sentences)
+                        for sentence in batch_sentences:
+                            ##print(sentence)
+                            txt_file.write("Model: " + sentence.encode('utf-8').decode('utf-8'))
+                            txt_file.write("\n")
+                            txt_file.flush()
+                        ##print(batch_sentences)
 
 
 

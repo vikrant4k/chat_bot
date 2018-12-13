@@ -46,7 +46,7 @@ class Decoder(nn.Module):
     def init_hidden(self, encoder_hidden_state):
         encoder_hidden_state=encoder_hidden_state.view(1,batch_size,encoder_hidden_state.shape[2])
         return (encoder_hidden_state,
-                    torch.zeros(1, 2, self.hidden_dim,device=device))
+                    torch.zeros(1, batch_size, self.hidden_dim,device=device))
 
     def forward(self,next_word_embedding,dec_lengths):
         dec_lengths=torch.ones(next_word_embedding.shape[0]).to(device)
@@ -222,7 +222,7 @@ class Model(nn.Module):
                 ##print(coverage)
                 ##print(current_attention)
                 out_word_data=out_word_data.squeeze()
-                print(out_word_data.shape)
+                ##print(out_word_data.shape)
                 out_word_list[:,i+1,:]=out_word_data
                 ##probs = F.softmax(out_word_data, dim=0)
                 ##index = torch.argmax(out_word_data)
