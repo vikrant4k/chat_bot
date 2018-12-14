@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 
 init_size=256
-batch_size=6
+batch_size=2
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print(device)
 class Encoder(nn.Module):
@@ -123,7 +123,7 @@ class Model(nn.Module):
         self.plot_knowledge=KnowledgeRNN(embedding_dim,init_size,self.word_embedding)
         self.rev_knowledge = KnowledgeRNN(embedding_dim, init_size, self.word_embedding)
         self.com_knowledge = KnowledgeRNN(embedding_dim,init_size, self.word_embedding)
-        self.linear1 = nn.Linear(init_size*2*3,vocab_size)
+        self.linear1 = nn.Linear(init_size*2*5,vocab_size)
         self.vocab_size=vocab_size
         ##self.linear2 = nn.Linear(2000, vocab_size)
         self.decoder_attention=Attention(init_size*4)
@@ -154,7 +154,13 @@ class Model(nn.Module):
         self.encoder.hidden = self.encoder.init_hidden() #TODO WE CREATE HIDDEN HERE ACTUALLY
         att_sum=None
         lstm_out, hidden_state=self.encoder.forward(enc_sent_indx,enc_lengths)
-        ini_dec_hidd_state=torch.zeros(lstm_out.shape[0],1,lstm_out.shape[2]).to(device)
+       ## mask_encoders = torch.ones(lstm_out.shape[0], lstm_out.shape[1],1).to(device)
+       ## for k in range(0, len(enc_lengths)):
+       ##     mask_encoders[k] = torch.cat((torch.ones(enc_lengths[k],1), torch.zeros(lstm_out.shape[1] - enc_lengths[k],1)))
+        ##lstm_out = lstm_out * mask_encoders
+        ini_dec_hidd_state=lstm_out[:,-1,:].unsqueeze(1)
+        ##print(ini_dec_hidd_state.shape,lstm_out[:,-1,:].shape)
+        ##ini_dec_hidd_state=ini_dec_hidd_state.view(lstm_out.shape[0],1,lstm_out.shape[2])
         ##for k in range(0,batch_size):
         ##    ini_dec_hidd_state[k]=lstm_out[k,enc_lengths[k]-1,:]
         self.decoder.hidden=self.decoder.init_hidden(ini_dec_hidd_state)
@@ -193,10 +199,10 @@ class Model(nn.Module):
                 ##current_state_mask=current_state_mask.view(1,batch_size,1)
                 ##ecoder_out=decoder_out*current_state_mask
                 resource_context_plot=self.plot_knowledge.calculate_resource_attention(know_hidd[0],decoder_out)
-                ##resource_context_rev = self.rev_knowledge.calculate_resource_attention(know_hidd[1], decoder_out)
-                ##resource_context_com = self.com_knowledge.calculate_resource_attention(know_hidd[2], decoder_out)
-                ##resource_context=torch.cat((resource_context_plot,resource_context_rev,resource_context_com),dim=2)
-                resource_context = resource_context_plot
+                resource_context_rev = self.rev_knowledge.calculate_resource_attention(know_hidd[1], decoder_out)
+                resource_context_com = self.com_knowledge.calculate_resource_attention(know_hidd[2], decoder_out)
+                resource_context=torch.cat((resource_context_plot,resource_context_rev,resource_context_com),dim=2)
+                ##resource_context = resource_context_plot
                 out_word_data,attention_weights,context=self.calculate_decoder_attention(lstm_out,encoder_out,hidden_state,decoder_out,resource_context)
                 ##out_word=self.calculate_pointer(resource_context,context,decoder_out,self.word_embedding(index),(plot_sent_indx_arr,resource_context_plot),(review_sent_indx_arr,resource_context_rev)
                 ##                                ,(comment_sent_indx_arr,resource_context_com))

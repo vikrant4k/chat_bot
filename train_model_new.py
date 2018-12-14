@@ -13,7 +13,7 @@ import math
 import numpy as np
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-batch_size=6
+batch_size=2
 def load_index_files():
     with open('w2i.json') as f:
          w2i= json.load(f)
@@ -242,16 +242,13 @@ def train_model():
                         know_hidd = model.forward_knowledge_movie(plot_sent_indx_arr, review_sent_indx_arr, comment_sent_indx_arr)
                         isRely = True
                         start_index = torch.tensor([1]).repeat(batch_size,1).long().to(device)
-                        try:
-                            output, coverage, current_attention = model.forward(input_sent, dec_sent_index,
+                        output, coverage, current_attention = model.forward(input_sent, dec_sent_index,
                                                                                 start_index,
                                                                                 True, know_hidd,
                                                                                 isRely, plot_sent_indx_arr,
                                                                                 review_sent_indx_arr,
                                                                                 comment_sent_indx_arr, enc_lengths,
                                                                                 dec_lengths)
-                        except:
-                            continue
 
                         org_word_index=dec_sent_index.clone()
                         max_prob_index = torch.argmax(output, dim=2)
@@ -274,7 +271,7 @@ def train_model():
                         ##print(batch_sentences)
 
 
-
+                        ##ls=torch.min(coverage,current_attention,dim=1)
                         for j in range(0,dec_sent_index.shape[1]):
                             ##output_text += (i2w[str(index.item())]) + " "
                             if (j == 0):
@@ -290,8 +287,8 @@ def train_model():
                             diff=le1-dec_lengths[ind]
                             for op in range(dec_lengths[ind],le1):
                                 output[op]*=1e-30
-                        loss = criterion(output,org_word_index ) + att_sum
-                        loss=torch.sum(loss)
+                        loss = criterion(output,org_word_index ) + torch.mean(att_sum)
+                        ##loss=torch.sum(loss)
                         print(loss.item())
                         tot_loss+=loss.item()
                         model.zero_grad()
