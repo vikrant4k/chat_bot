@@ -63,18 +63,18 @@ def k_nearest_neighbors(k, embeddings):
     return distances, indices
 
 
-def return_similar_movie_obj(movie_id):
+def get_similar_movie_obj(movie_id):
     curr_movie_index = w2i_movies[movie_id] - 1  # (-1 because is starts from 1 since we removed unk)
-    print(curr_movie_index)
+    #print(curr_movie_index)
     curr_name = movie_imdb2name[movie_id]
 
     distances, indices = k_nearest_neighbors(3, embeddings) #TODO THIS FINDS NEIGHBOURS OF ALL MOVIES EVERY TIME
-    print(indices)
+    #print(indices)
     closest_movie_index = indices[curr_movie_index][1] + 1
     closest_movie_id = i2w_movies[str(closest_movie_index)]
     closest_movie_name = movie_imdb2name[closest_movie_id]
 
-    print(curr_name, ' (', movie_id, ') matches with ', closest_movie_name, ' (', closest_movie_id, ' )')
+    #print(curr_name, ' (', movie_id, ') matches with ', closest_movie_name, ' (', closest_movie_id, ' )')
 
     # commented part is for cosine similarity
 
@@ -102,5 +102,19 @@ def return_similar_movie_obj(movie_id):
             return movie_data[m]
 
 
-closest_movie_object = return_similar_movie_obj('tt0061452')
-print(closest_movie_object)
+#closest_movie_object = return_similar_movie_obj('tt0061452')
+#print(closest_movie_object)
+
+closest_dict = dict()
+
+for m in movie_data:
+   closest_dict[m] = get_similar_movie_obj(m)
+   
+with open('neighbours.pkl', 'wb') as f:
+    pickle.dump(closest_dict, f)
+
+
+
+
+
+
