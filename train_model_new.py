@@ -13,7 +13,7 @@ import math
 import numpy as np
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-batch_size=2
+batch_size=6
 def load_index_files():
     with open('w2i.json') as f:
          w2i= json.load(f)
@@ -296,6 +296,8 @@ def train_model():
                         optimizer.step()
                         chats_complted+=batch_size
             txt_file.write("Movie Completed "+str(count))
+            if(count%100==0):
+                save_model(epoch,loss,optimizer,model)
         print("Epoch Completed")
     txt_file.close()
 train_model()
