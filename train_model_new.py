@@ -13,7 +13,7 @@ import math
 import numpy as np
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-batch_size=2
+batch_size=6
 def load_index_files():
     with open('w2i.json') as f:
          w2i= json.load(f)
@@ -137,7 +137,7 @@ def load_model(max_val):
     loss = checkpoint['loss']
     return model,optimizer,epoch,loss
 
-def minibatch(data1, data2, batch_size=2):
+def minibatch(data1, data2):
    for i in range(0, len(data1), batch_size):
         yield data1[i:i+batch_size], data2[i:i+batch_size]
 
@@ -149,7 +149,9 @@ def preprocess(data1, data2, PAD=0):
     max_dec = max(map(len, dec))
     #'<SOS> =1','<EOS>=2'
     seq_enc = [[1]+ seq + [2]+ [PAD] * (max_enc - len(seq)) for seq in enc]
-    seq_dec = [seq + [2]+ [PAD] * (max_dec - len(seq)) for seq in dec]    
+    seq_dec = [seq + [2]+ [PAD] * (max_dec - len(seq)) for seq in dec]
+    ##seq_enc = [[1] + seq + [2]   for seq in enc]
+    ##seq_dec = [seq + [2] for seq in dec]
     # print(seq_dec, seq_enc)
     seq_enc, seq_dec = np.array(seq_enc), np.array(seq_dec)
     ##print(seq_enc.shape, seq_dec.shape)
@@ -177,9 +179,9 @@ def train_model():
         optimizer = optim.Adam(model.parameters())
     else:
         model = Model(256, max_val + 1, prob_vocab)
-        model.to(device)
+        model=model.to(device)
         optimizer = optim.Adam(model.parameters())
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.CrossEntropyLoss(ignore_index=0)
     count=0
     chats_complted=0
     for epoch in range(200):
@@ -234,22 +236,27 @@ def train_model():
                         dec_lengths = torch.tensor(dec_lengths).long().to(device)
                         input_sent = torch.tensor(input_sent).long().to(device)
                         dec_sent_index = torch.tensor(dec_sent_index).long().to(device)
+                        ##dec_sent_index.requires_grad=False
                         ##print(input_sent.shape,dec_sent_index.shape)
                         ##print(enc_lengths,dec_lengths)
                         know_hidd = model.forward_knowledge_movie(plot_sent_indx_arr, review_sent_indx_arr, comment_sent_indx_arr)
                         isRely = True
                         start_index = torch.tensor([1]).repeat(batch_size,1).long().to(device)
-                        output, coverage, current_attention = model.forward(input_sent, dec_sent_index,
-                                                                                        start_index,
-                                                                                        True, know_hidd,
-                                                                                        isRely, plot_sent_indx_arr,
-                                                                                        review_sent_indx_arr,
-                                                                                         comment_sent_indx_arr,enc_lengths,dec_lengths)
+                        try:
+                            output, coverage, current_attention = model.forward(input_sent, dec_sent_index,
+                                                                                start_index,
+                                                                                True, know_hidd,
+                                                                                isRely, plot_sent_indx_arr,
+                                                                                review_sent_indx_arr,
+                                                                                comment_sent_indx_arr, enc_lengths,
+                                                                                dec_lengths)
+                        except:
+                            continue
 
                         org_word_index=dec_sent_index.clone()
-                        max_prob_index = torch.argmax(output, dim=1)
+                        max_prob_index = torch.argmax(output, dim=2)
                         batch_sentences = []
-                        print(dec_lengths)
+                        ##print(dec_lengths)
                         for b in range(max_prob_index.shape[0]):
                             sentence_str = ''
                             actual_len = dec_lengths[b]
@@ -260,9 +267,10 @@ def train_model():
                             batch_sentences.append(sentence_str)
                         for sentence in batch_sentences:
                             ##print(sentence)
-                            txt_file.write("Model: " + sentence.encode('utf-8').decode('utf-8'))
-                            txt_file.write("\n")
-                            txt_file.flush()
+                            if(len(sentence)>10):
+                                txt_file.write("Model: " + sentence.encode('utf-8').decode('utf-8'))
+                                txt_file.write("\n")
+                                txt_file.flush()
                         ##print(batch_sentences)
 
 
@@ -274,14 +282,23 @@ def train_model():
                             else:
                                 att_sum = torch.sum(torch.min(coverage[:,j,:], current_attention[:,j,:]),dim=1) + att_sum
                         ##print(output.view(output.shape[0]*output.shape[1],output.shape[2]).shape,org_word_index[:-1].shape)
-                        loss = criterion(output.view(output.shape[0]*output.shape[1],output.shape[2]), org_word_index.view(output.shape[0]*output.shape[1])) + att_sum
+                        org_word_index = org_word_index.view(output.shape[0] * output.shape[1])
+                        output=output.view(output.shape[0]*output.shape[1],output.shape[2])
+                        le1=org_word_index.shape[0]/2
+                        le1=int(le1)
+                        for ind in range(0,batch_size):
+                            diff=le1-dec_lengths[ind]
+                            for op in range(dec_lengths[ind],le1):
+                                output[op]*=1e-30
+                        loss = criterion(output,org_word_index ) + att_sum
                         loss=torch.sum(loss)
                         print(loss.item())
                         tot_loss+=loss.item()
                         model.zero_grad()
                         loss.backward()
                         optimizer.step()
-                print(tot_loss)
+                        chats_complted+=batch_size
+            txt_file.write("Movie Completed "+str(count))
         print("Epoch Completed")
     txt_file.close()
 train_model()
