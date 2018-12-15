@@ -13,7 +13,7 @@ import math
 import numpy as np
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-batch_size=6
+batch_size=2
 def load_index_files():
     with open('w2i.json') as f:
          w2i= json.load(f)
@@ -90,9 +90,9 @@ def convert2(sentence):
 def churn_review(review):
     for i  in range(0,len(review)):
         str_arr=review[i].split()
-        if(len(str_arr)>390):
+        if(len(str_arr)>200):
             str=''
-            for j in range(0,390):
+            for j in range(0,200):
                 if(j==0):
                     str=str_arr[0]
                 else:
@@ -231,6 +231,13 @@ def train_model():
                             enc_lengths.append(len(ea.split()))
                         for da in dec:
                             dec_lengths.append(len(da.split()))
+                        kj=0
+                        for lo in dec_lengths:
+                            if(lo>40):
+                                kj=1
+                        if(kj==1):
+                            kj=0
+                            continue
                         input_sent, dec_sent_index,  = preprocess(enc,dec)
                         enc_lengths = torch.tensor(enc_lengths).long().to(device)
                         dec_lengths = torch.tensor(dec_lengths).long().to(device)
@@ -290,12 +297,18 @@ def train_model():
                         loss = criterion(output,org_word_index ) + torch.mean(att_sum)
                         ##loss=torch.sum(loss)
                         print(loss.item())
-                        tot_loss+=loss.item()
-                        model.zero_grad()
-                        loss.backward()
-                        optimizer.step()
-                        chats_complted+=batch_size
+                        if(loss.item()<50):
+                            tot_loss += loss.item()
+                            model.zero_grad()
+                            loss.backward()
+                            optimizer.step()
+                            chats_complted += batch_size
+                        else:
+                            torch.cuda.empty_cache()
+            print(torch.cuda.memory_allocated(device=device)*math.pow(10,-9))
             txt_file.write("Movie Completed "+str(count))
+            txt_file.write("\n")
+            torch.cuda.empty_cache()
             if(count%100==0):
                 save_model(epoch,loss,optimizer,model)
         print("Epoch Completed")
