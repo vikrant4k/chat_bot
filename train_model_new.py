@@ -1,4 +1,4 @@
-from model_extra_new import Model
+from model_extra import Model
 import json
 import pickle
 import torch
@@ -13,7 +13,7 @@ import math
 import numpy as np
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-batch_size=2
+batch_size=1
 def load_index_files():
     with open('w2i.json') as f:
          w2i= json.load(f)
@@ -157,7 +157,9 @@ def preprocess(data1, data2, PAD=0):
     ##print(seq_enc.shape, seq_dec.shape)
     return np.array(seq_enc), np.array(seq_dec)
 
-
+def unique(tensor1d):
+    t, idx = np.unique(tensor1d.numpy(), return_inverse=True)
+    return torch.from_numpy(t), torch.from_numpy(idx)
 
 def train_model():
     model_exist=False
@@ -200,8 +202,21 @@ def train_model():
                 
                 review_sent_indx_arr = convert_knowledge(review)
                 comment_sent_indx_arr = convert_knowledge(comments)
-                # just the plot
 
+                tot_know_base=torch.cat((plot_sent_indx_arr,review_sent_indx_arr,comment_sent_indx_arr))
+                uniq_indxs, inverse_indices = torch.unique(tot_know_base, return_inverse=True)
+                indx_dic={}
+                for u in range(0,len(uniq_indxs)):
+                    val=uniq_indxs[u].item()
+                    for indy in range(0,len(tot_know_base)):
+                        if(val==tot_know_base[indy]):
+                            if(val in indx_dic):
+                                indx_dic[val].append(indy)
+                            else:
+                                indx_dic[val]=[]
+                                indx_dic[val].append(indy)
+
+                # just the plot
                 #model.knowledge.forward(plot_sent_indx)
                 tot_loss = 0
                 # if (len(comments) > 0 and len(review) > 0):
@@ -249,32 +264,57 @@ def train_model():
                         know_hidd = model.forward_knowledge_movie(plot_sent_indx_arr, review_sent_indx_arr, comment_sent_indx_arr)
                         isRely = True
                         start_index = torch.tensor([1]).repeat(batch_size,1).long().to(device)
+                        """
                         output, coverage, current_attention = model.forward(input_sent, dec_sent_index,
                                                                                 start_index,
                                                                                 True, know_hidd,
                                                                                 isRely, plot_sent_indx_arr,
                                                                                 review_sent_indx_arr,
                                                                                 comment_sent_indx_arr, enc_lengths,
-                                                                                dec_lengths)
-
+                                                                                dec_lengths,(uniq_indxs,indx_dic))
+                        """
+                        output, coverage, current_attention = model.forward(input_sent, dec_sent_index,
+                                                                            start_index,
+                                                                            True, know_hidd,
+                                                                            isRely)
                         org_word_index=dec_sent_index.clone()
-                        max_prob_index = torch.argmax(output, dim=2)
+                        max_prob_index = torch.argmax(output, dim=1)
                         batch_sentences = []
                         ##print(dec_lengths)
+                        """
                         for b in range(max_prob_index.shape[0]):
                             sentence_str = ''
                             actual_len = dec_lengths[b]
+                            ##print(actual_len)
                             for w in range(actual_len):
+                                ##word=i2w[str((max_prob_index[w]).item())]
                                 word = i2w[str((max_prob_index[b][w]).item())]
                                 sentence_str += word+' '
-
-                            batch_sentences.append(sentence_str)
+                        """
+                        sentence_str = ''
+                        for b in range(max_prob_index.shape[0]):
+                            ##print(actual_len)
+                            word = i2w[str((max_prob_index[b]).item())]
+                            sentence_str += word + ' '
+                        batch_sentences.append(sentence_str)
+                        sent_index=0
+                        print(len(batch_sentences))
                         for sentence in batch_sentences:
                             ##print(sentence)
                             if(len(sentence)>10):
+                                index=enc[sent_index].rfind("<EOS>")
+                                if(index==-1):
+                                    sent=enc[sent_index]
+                                else:
+                                    sent=enc[sent_index][index+6:]
+                                txt_file.write("Speaker 1:" +sent)
+                                txt_file.write("\n")
                                 txt_file.write("Model: " + sentence.encode('utf-8').decode('utf-8'))
                                 txt_file.write("\n")
+                                txt_file.write("Speaker 2:"+dec[sent_index])
+                                txt_file.write("\n")
                                 txt_file.flush()
+                            sent_index+=1
                         ##print(batch_sentences)
 
 
@@ -282,22 +322,16 @@ def train_model():
                         for j in range(0,dec_sent_index.shape[1]):
                             ##output_text += (i2w[str(index.item())]) + " "
                             if (j == 0):
-                                att_sum = torch.sum(torch.min(coverage[:,j,:], current_attention[:,j,:]),dim=1)
+                                att_sum = torch.sum(torch.min(coverage[0], current_attention[0]))
                             else:
-                                att_sum = torch.sum(torch.min(coverage[:,j,:], current_attention[:,j,:]),dim=1) + att_sum
+                                att_sum = torch.sum(torch.min(coverage[j], current_attention[j])) + att_sum
                         ##print(output.view(output.shape[0]*output.shape[1],output.shape[2]).shape,org_word_index[:-1].shape)
-                        org_word_index = org_word_index.view(output.shape[0] * output.shape[1])
-                        output=output.view(output.shape[0]*output.shape[1],output.shape[2])
-                        le1=org_word_index.shape[0]/2
-                        le1=int(le1)
-                        for ind in range(0,batch_size):
-                            diff=le1-dec_lengths[ind]
-                            for op in range(dec_lengths[ind],le1):
-                                output[op]*=1e-30
-                        loss = criterion(output,org_word_index ) + torch.mean(att_sum)
+                        org_word_index = dec_sent_index.clone()
+                        org_word_index=org_word_index.squeeze(0)
+                        loss = criterion(output,org_word_index ) + att_sum
                         ##loss=torch.sum(loss)
                         print(loss.item())
-                        if(loss.item()<50):
+                        if(loss.item()<150):
                             tot_loss += loss.item()
                             model.zero_grad()
                             loss.backward()

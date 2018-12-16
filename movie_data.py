@@ -27,7 +27,7 @@ class Chat:
         try:
             for i in range(0, le, 2):
                 if(i>=2):
-                    self.encoder_chat.append("<SOS> "+chats[i-2]+" <EOS>"+" <SOS> "+chats[i-1]+" "+chats[i])
+                    self.encoder_chat.append("<SOS> "+chats[i-2]+" <EOS>"+" <SOS> "+chats[i-1]+" <EOS> "+chats[i])
                 else:
                    self.encoder_chat.append(chats[i])
                 self.decoder_chat.append(chats[i + 1])

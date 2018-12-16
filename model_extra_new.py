@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 
 init_size=256
-batch_size=2
+batch_size=1
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print(device)
 class Encoder(nn.Module):
@@ -129,7 +129,7 @@ class Model(nn.Module):
         self.decoder_attention=nn.DataParallel(Attention(init_size*4))
         ##self.p_gen=torch.zeros(1,device="cuda:0")
         self.prob_vocab=prob_vocab
-        self.pointer=Pointer(init_size*6,init_size*2,init_size*2,init_size,vocab_size)
+        ###self.pointer=Pointer(init_size*6,init_size*2,init_size*2,init_size,vocab_size)
 
     def forward_knowledge_movie(self,plot,review,comment):
         data_out=[]
@@ -150,7 +150,7 @@ class Model(nn.Module):
 
 
     def forward(self,enc_sent_indx,dec_sent_index,start_index,isTrain,know_hidd,isRely,plot_sent_indx_arr,review_sent_indx_arr,
-                comment_sent_indx_arr,enc_lengths,dec_lengths):
+                comment_sent_indx_arr,enc_lengths,dec_lengths,know_base):
         self.encoder.module.hidden = self.encoder.module.init_hidden() #TODO WE CREATE HIDDEN HERE ACTUALLY
         att_sum=None
         lstm_out, hidden_state=self.encoder.forward(enc_sent_indx,enc_lengths)
@@ -183,17 +183,13 @@ class Model(nn.Module):
             ##print(coverage.shape,current_attention.shape)
             for i in range(-1,dec_sent_index.shape[1]-1):
                 if(i==-1):
-                    indexs=start_index
+                    index=start_index
                     out, hidden_state=self.decoder.forward(start_index,dec_lengths)
 
                 else:
                     if(isRely):
                         next_word=dec_sent_index[:,i]
                         next_word=next_word.reshape(next_word.shape[0],1)
-                        indexs=torch.argmax(out_word_data,dim=1)
-                        indexs=indexs.unsqueeze(1)
-                        ##probs = F.softmax(out_word_data, dim=2)
-                        ##index = torch.argmax(probs)
                         ##out, hidden_state = self.decoder.forward(dec_sent_index[i])
                         out, hidden_state = self.decoder.forward(next_word,dec_lengths)
                     else:
@@ -210,8 +206,8 @@ class Model(nn.Module):
                 resource_context=torch.cat((resource_context_plot,resource_context_rev,resource_context_com),dim=2)
                 ##resource_context = resource_context_plot
                 out_word_data,attention_weights,context=self.calculate_decoder_attention(lstm_out,encoder_out,hidden_state,decoder_out,resource_context)
-                out_word=self.calculate_pointer(resource_context,context,decoder_out,self.word_embedding(indexs),(plot_sent_indx_arr,resource_context_plot),(review_sent_indx_arr,resource_context_rev)
-                                               ,(comment_sent_indx_arr,resource_context_com))
+                ##out_word=self.calculate_pointer(resource_context,context,decoder_out,self.word_embedding(index),(plot_sent_indx_arr,resource_context_plot),(review_sent_indx_arr,resource_context_rev)
+                ##                                ,(comment_sent_indx_arr,resource_context_com))
 
                 attention_weights=attention_weights.squeeze()
                 if(i==-1):
@@ -226,7 +222,6 @@ class Model(nn.Module):
                 ##att_sum=torch.sum(torch.min(coverage[i+1], current_attention[i+1]))+att_sum
                 ##print(coverage)
                 ##print(current_attention)
-                ##pointer=self.calculate_pointer(resource_context,context,decoder_out,)
                 out_word_data=out_word_data.squeeze()
                 ##print(out_word_data.shape)
                 out_word_list[:,i+1,:]=out_word_data
@@ -241,14 +236,13 @@ class Model(nn.Module):
 
     def calculate_pointer(self,resource,context,hidden_state,prev_input_word,plot_data,review_data,comment_data):
         p_gen=self.pointer.forward(resource,context,hidden_state,prev_input_word)
-        att_word_weights=torch.zeros(batch_size,self.vocab_size).to(device)
+        att_word_weights=torch.zeros(self.vocab_size,device="cuda:0")
         bases=[plot_data,review_data,comment_data]
         for base in bases:
             indxs=base[0]
             att=base[1]
-            print(indxs.shape,att.shape)
             for i in range(0,len(indxs)):
-                att_word_weights[:,indxs[i]]=att_word_weights[:,indxs[i]]+att[:,i]
+                att_word_weights[indxs[i]]=att_word_weights[indxs[i]]+att[i]
         p_w=p_gen*self.prob_vocab+(1-p_gen)*att_word_weights
         return p_gen
 
