@@ -5,7 +5,7 @@ import torch.optim as optim
 
 init_size=256
 batch_size=1
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+device = torch.device("cpu" if torch.cuda.is_available() else "cpu")
 print(device)
 class Encoder(nn.Module):
 
@@ -21,6 +21,7 @@ class Encoder(nn.Module):
         return init_hidden
 
     def forward(self, sentence,enc_lengths):
+        sentence = sentence.cpu()
         sorted_lengths,sorted_ids=torch.sort(enc_lengths,descending=True)
         embeds = self.word_embedding(sentence)
         embeds=embeds[sorted_ids]
@@ -49,6 +50,7 @@ class Decoder(nn.Module):
                     torch.zeros(1, batch_size, self.hidden_dim,device=device))
 
     def forward(self,next_word_embedding,dec_lengths):
+        next_word_embedding = next_word_embedding.cpu()
         embeds = self.word_embedding(next_word_embedding)
         lstm_out, self.hidden = self.lstm(embeds,self.hidden )
         return lstm_out, self.hidden
@@ -117,16 +119,18 @@ class Model(nn.Module):
     def __init__(self,embedding_dim,vocab_size,prob_vocab):
         super(Model, self).__init__()
         self.vocab_size=vocab_size
-        self.word_embedding = nn.Embedding(vocab_size, embedding_dim,padding_idx=0)
-        self.encoder=nn.DataParallel(Encoder(embedding_dim,init_size,vocab_size, self.word_embedding))
-        self.decoder = nn.DataParallel(Decoder(embedding_dim,init_size*2, self.word_embedding, vocab_size))
+        i = torch.tensor(0).cpu()
+        self.word_embedding = nn.Embedding(vocab_size, embedding_dim)
+        self.encoder=nn.DataParallel(Encoder(embedding_dim,init_size,vocab_size, self.word_embedding),device_ids=None)
+        self.decoder = nn.DataParallel(Decoder(embedding_dim,init_size*2, self.word_embedding, vocab_size),device_ids=None)
         self.plot_knowledge=KnowledgeRNN(embedding_dim,init_size,self.word_embedding)
         self.rev_knowledge = KnowledgeRNN(embedding_dim, init_size, self.word_embedding)
         self.com_knowledge = KnowledgeRNN(embedding_dim,init_size, self.word_embedding)
-        self.linear1 = nn.DataParallel(nn.Linear(init_size*2*5,vocab_size))
+        self.linear1 = nn.DataParallel(nn.Linear(init_size*2*5,vocab_size),device_ids=None)
         self.vocab_size=vocab_size
         ##self.linear2 = nn.Linear(2000, vocab_size)
-        self.decoder_attention=nn.DataParallel(Attention(init_size*4))
+        attention = Attention(init_size * 4).cpu()
+        self.decoder_attention=nn.DataParallel(attention, device_ids=None)
         ##self.p_gen=torch.zeros(1,device="cuda:0")
         self.prob_vocab=prob_vocab
         ###self.pointer=Pointer(init_size*6,init_size*2,init_size*2,init_size,vocab_size)
@@ -149,7 +153,7 @@ class Model(nn.Module):
 
 
 
-    def forward(self,enc_sent_indx,dec_sent_index,start_index,isTrain,know_hidd,isRely,plot_sent_indx_arr,review_sent_indx_arr,
+    def forward(self,enc_sent_indx, dec_sent_indx, start_index,isTrain,know_hidd,isRely,plot_sent_indx_arr,review_sent_indx_arr,
                 comment_sent_indx_arr,enc_lengths,dec_lengths,know_base):
         self.encoder.module.hidden = self.encoder.module.init_hidden() #TODO WE CREATE HIDDEN HERE ACTUALLY
         att_sum=None
@@ -167,8 +171,9 @@ class Model(nn.Module):
         ##    ini_dec_hidd_state[k]=lstm_out[k,enc_lengths[k]-1,:]
         self.decoder.module.hidden=self.decoder.module.init_hidden(ini_dec_hidd_state)
         encoder_out= lstm_out#.view(lstm_out.shape[0], 1, init_size*2)\
-        out_word_list = torch.zeros(batch_size,dec_sent_index.shape[1],self.vocab_size,device=device)
+        out_word_list = []
         if(isTrain):
+            out_word_list = torch.zeros(batch_size,dec_sent_index.shape[1],self.vocab_size,device=device)
             ##mask_encoders=torch.ones(lstm_out.shape[0],lstm_out.shape[1]).to(device)
             ##mask_decoder=torch.ones(lstm_out.shape[0],dec_sent_index.shape[1]).to(device)
             ##for k in range(0, len(dec_lengths)):
@@ -227,16 +232,66 @@ class Model(nn.Module):
                 out_word_list[:,i+1,:]=out_word_data
                 ##probs = F.softmax(out_word_data, dim=0)
                 ##index = torch.argmax(out_word_data)
+        else:
+            out_word_list = self.forward_test(encoder_out, know_hidd, lstm_out, start_index)
 
-
-        return out_word_list,coverage,current_attention
+        return out_word_list
 
 
         ##attention_input = torch.cat((encoder_out[:, -1], decoder_temp), dim=1)
 
+    def end_of_sentence(self,out_word_list, counter):
+        if (counter == -1):
+            return True
+        else:
+            return (out_word_list[-1] != 2 or len(out_word_list) < 40)
+    def forward_test(self, encoder_out, know_hidd, lstm_out, start_index):
+        out_word_list = []
+        count = -1
+        while self.end_of_sentence(out_word_list, count):
+            if (count == -1):
+                out, hidden_state = self.decoder.forward(start_index, [])
+            else:
+                out, hidden_state = self.decoder.forward(torch.argmax(out_word_list, dim=1), [])
+            decoder_out = hidden_state[0]
+            ##current_state_mask=mask_decoder[:,i+1]
+            ##current_state_mask=current_state_mask.view(1,batch_size,1)
+            ##ecoder_out=decoder_out*current_state_mask
+            resource_context_plot = self.plot_knowledge.calculate_resource_attention(know_hidd[0], decoder_out)
+            resource_context_rev = self.rev_knowledge.calculate_resource_attention(know_hidd[1], decoder_out)
+            resource_context_com = self.com_knowledge.calculate_resource_attention(know_hidd[2], decoder_out)
+            resource_context = torch.cat((resource_context_plot, resource_context_rev, resource_context_com),
+                                         dim=2)
+            ##resource_context = resource_context_plot
+            out_word_data, attention_weights, context = self.calculate_decoder_attention(lstm_out, encoder_out,
+                                                                                         hidden_state,
+                                                                                         decoder_out,
+                                                                                         resource_context)
+            ##out_word=self.calculate_pointer(resource_context,context,decoder_out,self.word_embedding(index),(plot_sent_indx_arr,resource_context_plot),(review_sent_indx_arr,resource_context_rev)
+            ##                                ,(comment_sent_indx_arr,resource_context_com))
+
+            attention_weights = attention_weights.squeeze()
+            if (count == -1):
+                temp_sum = torch.zeros(batch_size, lstm_out.shape[1], device=device)
+                ##print(temp_sum.shape)
+            else:
+                ##print(last_attention_weight.shape)
+                temp_sum = temp_sum + last_attention_weight
+            last_attention_weight = attention_weights
+            ##att_sum=torch.sum(torch.min(coverage[i+1], current_attention[i+1]))+att_sum
+            ##print(coverage)
+            ##print(current_attention)
+            out_word_data = out_word_data.squeeze()
+            ##print(out_word_data.shape)
+            out_word_list.append(out_word_data)
+            ##probs = F.softmax(out_word_data, dim=0)
+            ##index = torch.argmax(out_word_data)
+            count = count + 1
+        return out_word_list
+
     def calculate_pointer(self,resource,context,hidden_state,prev_input_word,plot_data,review_data,comment_data):
         p_gen=self.pointer.forward(resource,context,hidden_state,prev_input_word)
-        att_word_weights=torch.zeros(self.vocab_size,device="cuda:0")
+        att_word_weights=torch.zeros(self.vocab_size,device="cpu")
         bases=[plot_data,review_data,comment_data]
         for base in bases:
             indxs=base[0]

@@ -1,4 +1,4 @@
-from model_extra import Model
+from model_extra_new import Model
 import json
 import pickle
 import torch
@@ -13,7 +13,7 @@ import math
 import numpy as np
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-batch_size=1
+batch_size=2
 def load_index_files():
     with open('w2i.json') as f:
          w2i= json.load(f)
@@ -162,7 +162,7 @@ def unique(tensor1d):
     return torch.from_numpy(t), torch.from_numpy(idx)
 
 def train_model():
-    model_exist=False
+    model_exist=True
     lamb=1e-4
     prob=0.6
     ts = time.time()

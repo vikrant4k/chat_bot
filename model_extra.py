@@ -151,8 +151,8 @@ class Model(nn.Module):
         ini_dec_hidd_state = lstm_out[-1].view(1,1,-1)
         self.decoder.hidden=self.decoder.init_hidden(ini_dec_hidd_state)
         encoder_out = lstm_out.view(lstm_out.shape[0], 1, init_size*2)
-        out_word_list = torch.zeros(len(dec_sent_index),self.vocab_size,device=device)
         if(isTrain):
+            out_word_list = torch.zeros(len(dec_sent_index),self.vocab_size,device=device)
             coverage=torch.zeros(len(dec_sent_index),lstm_out.shape[0],device=device)
             current_attention=torch.zeros(len(dec_sent_index),lstm_out.shape[0],device=device)
             for i in range(-1,len(dec_sent_index)-1):
@@ -190,6 +190,47 @@ class Model(nn.Module):
                 out_word_list[i,:]=out_word_data
                 ##probs = F.softmax(out_word_data, dim=0)
                 ##index = torch.argmax(out_word_data)
+        else:
+            out_word_list = []
+            coverage=torch.zeros(len(dec_sent_index),lstm_out.shape[0],device=device)
+            current_attention=torch.zeros(len(dec_sent_index),lstm_out.shape[0],device=device)
+
+            while (out_word_list[-1] != 1 or len(out_word_list) < 40):
+                if(i==-1):
+                    index=start_index
+                    out, hidden_state=self.decoder.forward(start_index)
+
+                else:
+                    if(isRely):
+                        ##out, hidden_state = self.decoder.forward(dec_sent_index[i])
+                        out, hidden_state = self.decoder.forward(dec_sent_index[i])
+                    else:
+                        ##probs = F.softmax(out_word_data, dim=0)
+                        ##index = torch.argmax(probs)
+                        out, hidden_state = self.decoder.forward(dec_sent_index[i])
+                decoder_out=hidden_state[0].view(1,init_size*2)
+                resource_context_plot=self.plot_knowledge.calculate_resource_attention(know_hidd[0],decoder_out)
+                resource_context_rev = self.rev_knowledge.calculate_resource_attention(know_hidd[1], decoder_out)
+                resource_context_com = self.com_knowledge.calculate_resource_attention(know_hidd[2], decoder_out)
+                resource_context=torch.cat((resource_context_plot,resource_context_rev,resource_context_com),dim=0)
+                out_word_data,attention_weights,context=self.calculate_decoder_attention(lstm_out,encoder_out,hidden_state,decoder_out,resource_context)
+                ##out_word=self.calculate_pointer(resource_context,context,decoder_out,self.word_embedding(index),(plot_sent_indx_arr,resource_context_plot),(review_sent_indx_arr,resource_context_rev)
+                ##                                ,(comment_sent_indx_arr,resource_context_com))
+                if(i==-1):
+                    temp_sum=torch.zeros(1,lstm_out.shape[0],device=device)
+                else:
+                    temp_sum=temp_sum+last_attention_weight.view(attention_weights.shape[1],attention_weights.shape[0])
+
+                coverage[i+1,:]=temp_sum
+                current_attention[i+1,:]=attention_weights.view(-1)
+                last_attention_weight=attention_weights
+                ##att_sum=torch.sum(torch.min(coverage[i+1], current_attention[i+1]))+att_sum
+                ##print(coverage)
+                ##print(current_attention)
+                out_word_list.append(out_word_data)
+                ##probs = F.softmax(out_word_data, dim=0)
+                ##index = torch.argmax(out_word_data)
+
 
 
         return out_word_list,coverage,current_attention
