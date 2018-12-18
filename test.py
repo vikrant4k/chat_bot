@@ -149,11 +149,7 @@ def load_model(max_val):
     model = Model(256, max_val + 1, prob_vocab)
     optimizer = optim.Adam(model.parameters())
     checkpoint = torch.load("model.pkl", map_location=lambda storage, loc: storage)
-    cpu_model_dict = {}
-    for key, val in checkpoint['model_state_dict'].items():
-        cpu_model_dict[key] = val.cpu()
-
-    model.load_state_dict(cpu_model_dict)
+    model.load_state_dict(checkpoint['model_state_dict'])
     optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
     epoch = checkpoint['epoch']
     loss = checkpoint['loss']
@@ -477,63 +473,10 @@ def test():
                                                                         start_index,
                                                                         False, know_hidd,
                                                                         isRely,[],[],[],enc_lengths, [],[])
-                    org_word_index = dec_sent_index.clone()
-                    max_prob_index = torch.argmax(output, dim=1)
-                    batch_sentences = []
-                    ##print(dec_lengths)
-                    """
-                    for b in range(max_prob_index.shape[0]):
-                        sentence_str = ''
-                        actual_len = dec_lengths[b]
-                        ##print(actual_len)
-                        for w in range(actual_len):
-                            ##word=i2w[str((max_prob_index[w]).item())]
-                            word = i2w[str((max_prob_index[b][w]).item())]
-                            sentence_str += word+' '
-                    """
-                    sentence_str = ''
-                    for b in range(max_prob_index.shape[0]):
-                        ##print(actual_len)
-                        word = i2w[str((max_prob_index[b]).item())]
-                        sentence_str += word + ' '
-                    batch_sentences.append(sentence_str)
-                    sent_index = 0
-                    print(len(batch_sentences))
-                    for sentence in batch_sentences:
-                        ##print(sentence)
-                        if (len(sentence) > 10):
-                            index = enc[sent_index].rfind("<EOS>")
-                            if (index == -1):
-                                sent = enc[sent_index]
-                            else:
-                                sent = enc[sent_index][index + 6:]
-                            txt_file.write("Speaker 1:" + sent)
-                            txt_file.write("\n")
-                            txt_file.write("Model: " + sentence.encode('utf-8').decode('utf-8'))
-                            txt_file.write("\n")
-                            txt_file.write("Speaker 2:" + dec[sent_index])
-                            txt_file.write("\n")
-                            txt_file.flush()
-                        sent_index += 1
-                    ##print(batch_sentences)
-
-                    ##ls=torch.min(coverage,current_attention,dim=1)
-                    for j in range(0, dec_sent_index.shape[1]):
-                        ##output_text += (i2w[str(index.item())]) + " "
-                        if (j == 0):
-                            att_sum = torch.sum(torch.min(coverage[0], current_attention[0]))
-                        else:
-                            att_sum = torch.sum(torch.min(coverage[j], current_attention[j])) + att_sum
-                    ##print(output.view(output.shape[0]*output.shape[1],output.shape[2]).shape,org_word_index[:-1].shape)
-                    org_word_index = dec_sent_index.clone()
-                    org_word_index = org_word_index.squeeze(0)
-                    loss = criterion(output, org_word_index) + att_sum
-                    ##loss=torch.sum(loss)
-                    print(loss.item())
-                    tot_loss += loss.item()
-                    model.zero_grad()
-                    loss.backward()
-                    optimizer.step()
+                    x = [i2w[str(el.tolist())] for el in output]
+                    print(x)
+                    txt_file.write(str(x))
+                    txt_file.write("\n")
                     chats_complted += batch_size
             txt_file.write("Movie Completed " + str(count))
             txt_file.write("\n")

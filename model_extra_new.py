@@ -52,7 +52,7 @@ class Decoder(nn.Module):
     def forward(self,next_word_embedding,dec_lengths):
         next_word_embedding = next_word_embedding.cpu()
         embeds = self.word_embedding(next_word_embedding)
-        lstm_out, self.hidden = self.lstm(embeds,self.hidden )
+        lstm_out, self.hidden = self.lstm(embeds,self.hidden)
         return lstm_out, self.hidden
 
 class KnowledgeRNN(nn.Module):
@@ -95,8 +95,11 @@ class Attention(nn.Module):
 
     def forward(self,input):
         ##input=torch.cat((encoder_hidden_state,decoder_hidden_state),1)
-        out1=F.relu(self.linear1(input))
-        out2=F.relu(self.linear2(out1))
+        input = input.cpu()
+        linear_ = self.linear1(input)
+        out1=F.relu(linear_)
+        self_linear_ = self.linear2(out1)
+        out2=F.relu(self_linear_)
         return out2
 
 class Pointer(nn.Module):
@@ -119,17 +122,20 @@ class Model(nn.Module):
     def __init__(self,embedding_dim,vocab_size,prob_vocab):
         super(Model, self).__init__()
         self.vocab_size=vocab_size
-        i = torch.tensor(0).cpu()
         self.word_embedding = nn.Embedding(vocab_size, embedding_dim)
         self.encoder=nn.DataParallel(Encoder(embedding_dim,init_size,vocab_size, self.word_embedding),device_ids=None)
+        self.encoder.device_ids = []
         self.decoder = nn.DataParallel(Decoder(embedding_dim,init_size*2, self.word_embedding, vocab_size),device_ids=None)
+        self.decoder.device_ids = []
         self.plot_knowledge=KnowledgeRNN(embedding_dim,init_size,self.word_embedding)
         self.rev_knowledge = KnowledgeRNN(embedding_dim, init_size, self.word_embedding)
         self.com_knowledge = KnowledgeRNN(embedding_dim,init_size, self.word_embedding)
-        self.linear1 = nn.DataParallel(nn.Linear(init_size*2*5,vocab_size),device_ids=None)
+        linear = nn.Linear(init_size * 2 * 5, vocab_size)
+        self.linear1 = nn.DataParallel(linear, device_ids=None)
+        self.linear1.device_ids = []
         self.vocab_size=vocab_size
         ##self.linear2 = nn.Linear(2000, vocab_size)
-        attention = Attention(init_size * 4).cpu()
+        attention = Attention(init_size * 4)
         self.decoder_attention=nn.DataParallel(attention, device_ids=None)
         ##self.p_gen=torch.zeros(1,device="cuda:0")
         self.prob_vocab=prob_vocab
@@ -240,19 +246,25 @@ class Model(nn.Module):
 
         ##attention_input = torch.cat((encoder_out[:, -1], decoder_temp), dim=1)
 
-    def end_of_sentence(self,out_word_list, counter):
+    def end_of_sentence(self,output, counter):
         if (counter == -1):
             return True
         else:
-            return (out_word_list[-1] != 2 or len(out_word_list) < 40)
+            if len(output) >= 40:
+                return False
+            if output[-1] == 2:
+                return False
+        return True
+
     def forward_test(self, encoder_out, know_hidd, lstm_out, start_index):
+        output = [torch.tensor(1)]
         out_word_list = []
         count = -1
-        while self.end_of_sentence(out_word_list, count):
+        while self.end_of_sentence(output, count):
             if (count == -1):
                 out, hidden_state = self.decoder.forward(start_index, [])
             else:
-                out, hidden_state = self.decoder.forward(torch.argmax(out_word_list, dim=1), [])
+                out, hidden_state = self.decoder.forward(output[-1].view(1,1), [])
             decoder_out = hidden_state[0]
             ##current_state_mask=mask_decoder[:,i+1]
             ##current_state_mask=current_state_mask.view(1,batch_size,1)
@@ -283,11 +295,12 @@ class Model(nn.Module):
             ##print(current_attention)
             out_word_data = out_word_data.squeeze()
             ##print(out_word_data.shape)
+            index = torch.argmax(out_word_data)
             out_word_list.append(out_word_data)
+            output.append(index)
             ##probs = F.softmax(out_word_data, dim=0)
-            ##index = torch.argmax(out_word_data)
             count = count + 1
-        return out_word_list
+        return output
 
     def calculate_pointer(self,resource,context,hidden_state,prev_input_word,plot_data,review_data,comment_data):
         p_gen=self.pointer.forward(resource,context,hidden_state,prev_input_word)
