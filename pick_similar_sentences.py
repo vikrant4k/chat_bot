@@ -2,10 +2,17 @@ import pickle
 import torch
 import json
 import numpy as np
+from numpy import *
 from sklearn.neighbors import NearestNeighbors
 from nltk.corpus import stopwords
 from nltk.tokenize import TweetTokenizer
 
+neighbours=None
+w2i_movies=None
+i2w_movies=None
+movie_data=None
+w2i_rpc=None
+i2w_rpc=None
 with open('w2i_movie_names.json') as f:
     w2i_movies = json.load(f)
 
@@ -22,6 +29,7 @@ with open('w2i_review_comments_fact.json') as f:
     w2i_rpc = json.load(f)
 with open('i2w_review_comments_fact.json') as f:
     i2w_rpc = json.load(f)
+movie_model = torch.load('model_movie.pkl', map_location='cpu')
 
 len(i2w_rpc.keys())
 w2i_rpc['unknown']
@@ -32,6 +40,7 @@ tknzr = TweetTokenizer()
 def k_nearest_neighbors(k, embeddings):
     k += 1
     nbrs = NearestNeighbors(n_neighbors=k, algorithm='kd_tree')
+    embeddings=np.nan_to_num(embeddings)
     nbrs.fit(embeddings)
     distances, indices = nbrs.kneighbors(embeddings)
     return distances, indices
@@ -63,22 +72,23 @@ def get_average_utterance_embedding(utterance, embed_dim, stopwords, w2i, traine
     return avg_utterances_embedding
 
 
-def get_similar_movie_responses(movie_id, n, model, w2i, i2w, utterance, neighbours, stop_words):
+def get_similar_movie_responses(movie_id, n,utterance):
     '''
     w2i and i2w are vocabularies for plot-review-comments
     utterance is a tokenized sentence of strings
     returning a list of tokenized sentences of strings
     '''
+    global neighbours
     similar_movie_data = neighbours[movie_id]
     similar_movie_id = similar_movie_data.imdb_id
-    print(similar_movie_id)
+    ##print(similar_movie_id)
     similar_movie_chat = similar_movie_data.chat
 
-    trained_word_embeddings = model['model_state_dict']['word_embedding.weight']
+    trained_word_embeddings = movie_model['model_state_dict']['word_embedding.weight']
     # print(trained_word_embeddings.shape)
     embed_dim = trained_word_embeddings.shape[1]
 
-    avg_utterance_embedding = get_average_utterance_embedding(utterance, embed_dim, stop_words, w2i, trained_word_embeddings)
+    avg_utterance_embedding = get_average_utterance_embedding(utterance, embed_dim, stop_words, w2i_rpc, trained_word_embeddings)
 
     similar_responses = []
 
@@ -94,7 +104,7 @@ def get_similar_movie_responses(movie_id, n, model, w2i, i2w, utterance, neighbo
             sent = enc[s]
             sent = tknzr.tokenize(sent)
             # print(sent)
-            sent_avg_embedding = get_average_utterance_embedding(sent, embed_dim, stop_words, w2i, trained_word_embeddings)
+            sent_avg_embedding = get_average_utterance_embedding(sent, embed_dim, stop_words, w2i_rpc, trained_word_embeddings)
 
             all_chat_reps.append(sent_avg_embedding.numpy())
             # chat index and then sentence index for speaker 1
@@ -103,22 +113,22 @@ def get_similar_movie_responses(movie_id, n, model, w2i, i2w, utterance, neighbo
 
             # print(all_chat_reps[0])
     distances, indices = k_nearest_neighbors(n, all_chat_reps)
-    print(indices)
-    neighbours = indices[0]
+    ##print(indices)
+    neighbours_m = indices[0]
 
-    for n in neighbours:
+    for n in neighbours_m:
         (c, s) = all_chat_indices[n]
-        print(c, s)
+        ##print(c, s)
         if c != -1:
-            print(similar_movie_chat[c].encoder_chat[s])
-            print(similar_movie_chat[c].decoder_chat[s])
-            similar_responses.append(tknzr.tokenize(similar_movie_chat[c].decoder_chat[s]))
+            ##print(similar_movie_chat[c].encoder_chat[s])
+            ##print(similar_movie_chat[c].decoder_chat[s])
+            ##print(similar_movie_chat[c].decoder_chat[s])
+            similar_responses.append(similar_movie_chat[c].decoder_chat[s])
 
     return similar_responses
 
 
-movie_id = 'tt0058150'
-n = 5
-utterance = ['which', 'is', 'your', 'favourite', 'character']  # speaker 1 utterance
-model = torch.load('model_movie.pkl', map_location='cpu')
-similar_responses = get_similar_movie_responses(movie_id, n, model, w2i_rpc, i2w_rpc, utterance, neighbours, stopwords)
+##movie_id = 'tt0058150'
+##n = 1
+##utterance = ['which', 'is', 'your', 'favourite', 'character']  # speaker 1 utterance
+##similar_responses = get_similar_movie_responses(movie_id, n,utterance)

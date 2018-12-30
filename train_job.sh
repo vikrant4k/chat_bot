@@ -17,6 +17,6 @@ module load cuDNN/7.0.5-CUDA-9.0.176
 module load NCCL/2.0.5-CUDA-9.0.176
 export LD_LIBRARY_PATH=$CUDA_HOME/lib64:/hpc/eb/Debian9/cuDNN/7.1-CUDA-8.0.44-GCCcore-5.4.0/lib64:$LD_LIBRARY_PATH
 
-srun python3 -u train_model_new.py
+srun python3 -u train_side_know.py
 
 
