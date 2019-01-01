@@ -301,6 +301,7 @@ def test_side():
                         isRely = True
                         start_index = torch.tensor([1]).repeat(batch_size, 1).long().to(device)
 
+                        print('here')
                         output, coverage, current_attention = model.forward(input_sent, dec_sent_index,
                                                                             start_index,
                                                                             False, know_hidd,
@@ -308,6 +309,7 @@ def test_side():
 
                         org_word_index = dec_sent_index.clone()
                         max_prob_index = torch.argmax(output, dim=1)
+                        print(max_prob_index)
                         batch_sentences = []
 
                         sentence_str = ''
@@ -316,6 +318,7 @@ def test_side():
                             word = i2w[str((max_prob_index[b]).item())]
                             sentence_str += word + ' '
 
+                        print(sentence_str)
 
                         batch_sentences.append(sentence_str)
                         sent_index = 0

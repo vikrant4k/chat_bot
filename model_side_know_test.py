@@ -225,6 +225,7 @@ class Model(nn.Module):
         count = -1
 
         while self.end_of_sentence(output, count):
+            print(count)
             if (count == -1):
                 out, hidden_state = self.decoder.forward(start_index)
             else:
@@ -253,8 +254,15 @@ class Model(nn.Module):
             ##att_sum=torch.sum(torch.min(coverage[i+1], current_attention[i+1]))+att_sum
             ##print(coverage)
             ##print(current_attention)
-            count = count + 1
+            out_word_data = out_word_data.squeeze()
+            ##print(out_word_data.shape)
+            index = torch.argmax(out_word_data)
+            print(out_word_data)
+            print(index)
             out_word_list.append(out_word_data)
+            output.append(index)
+
+            count = count + 1
             ##probs = F.softmax(out_word_data, dim=0)
             ##index = torch.argmax(out_word_data)
 
