@@ -305,6 +305,7 @@ def test_side():
                                                                             start_index,
                                                                             False, know_hidd,
                                                                             isRely)
+
                         org_word_index = dec_sent_index.clone()
                         max_prob_index = torch.argmax(output, dim=1)
                         batch_sentences = []
@@ -314,6 +315,7 @@ def test_side():
                             ##print(actual_len)
                             word = i2w[str((max_prob_index[b]).item())]
                             sentence_str += word + ' '
+
 
                         batch_sentences.append(sentence_str)
                         sent_index = 0
@@ -336,27 +338,6 @@ def test_side():
                             sent_index += 1
                         ##print(batch_sentences)
 
-                        ##ls=torch.min(coverage,current_attention,dim=1)
-                        for j in range(0, dec_sent_index.shape[1]):
-                            ##output_text += (i2w[str(index.item())]) + " "
-                            if (j == 0):
-                                att_sum = torch.sum(torch.min(coverage[0], current_attention[0]))
-                            else:
-                                att_sum = torch.sum(torch.min(coverage[j], current_attention[j])) + att_sum
-                        ##print(output.view(output.shape[0]*output.shape[1],output.shape[2]).shape,org_word_index[:-1].shape)
-                        org_word_index = dec_sent_index.clone()
-                        org_word_index = org_word_index.squeeze(0)
-                        loss = criterion(output, org_word_index) + att_sum
-                        ##loss=torch.sum(loss)
-                        print(loss.item())
-                        if (loss.item() < 150):
-                            tot_loss += loss.item()
-                            model.zero_grad()
-                            loss.backward()
-                            optimizer.step()
-                            chats_complted += batch_size
-                        else:
-                            torch.cuda.empty_cache()
             txt_file.write("Movie Completed " + str(count))
             txt_file.write("\n")
             torch.cuda.empty_cache()
