@@ -11,11 +11,11 @@ import torch.optim as optim
 from collections import deque
 import math
 import numpy as np
-
 from pick_similar_sentences import get_similar_movie_responses
 
-device = torch.device("cpu" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 batch_size = 1
+
 
 def load_index_files():
     with open('w2i.json') as f:
@@ -152,7 +152,6 @@ def load_model(max_val):
     return model, optimizer, epoch, loss
 
 
-
 def minibatch(data1, data2):
     for i in range(0, len(data1), batch_size):
         yield data1[i:i + batch_size], data2[i:i + batch_size]
@@ -180,7 +179,6 @@ def unique(tensor1d):
     return torch.from_numpy(t), torch.from_numpy(idx)
 
 
-# test_side()
 def test_side():
     model_exist = True
     lamb = 1e-4
@@ -195,27 +193,31 @@ def test_side():
         temp_val = int(key)
         if (max_val < temp_val):
             max_val = temp_val
-    with torch.no_grad():
+    if (model_exist):
         model, optimizer, epoch, loss = load_model(max_val)
         model.to(device)
         optimizer = optim.Adam(model.parameters())
-        criterion = nn.CrossEntropyLoss(ignore_index=0)
-        count = 0
-        chats_complted = 0
+    else:
+        model = Model(256, max_val + 1, prob_vocab)
+        model = model.to(device)
+        optimizer = optim.Adam(model.parameters())
+    criterion = nn.CrossEntropyLoss(ignore_index=0)
+    count = 0
+    chats_complted = 0
+    with torch.no_grad():
         for data in movie_data:
             tot_loss = 0
             count = count + 1
-            if (count > 0): #TODO if (count >=600):
-
+            if (count >=0):
                 movie = movie_data[data]
                 chats = movie.chat
-                movie_id = movie.imdb_id
+                movie_id=movie.imdb_id
                 plot = movie.plot
                 review = movie.review
                 comments = churn_comments(movie.comments)
-
                 review = churn_review(review)
                 plot_sent_indx_arr = convert_knowledge(plot)
+
                 review_sent_indx_arr = convert_knowledge(review)
                 comment_sent_indx_arr = convert_knowledge(comments)
 
@@ -238,7 +240,6 @@ def test_side():
                 # if (len(comments) > 0 and len(review) > 0):
                 encoder_in = []
                 decoder_ou = []
-
                 for chat in chats:
                     deq = deque(maxlen=2)
                     talk = chat.chat
@@ -253,20 +254,20 @@ def test_side():
 
                     for enc, dec in minibatch(encoder_in, decoder_ou):
                         last_index = enc[0].rfind("<EOS>")
-                        if (last_index < 0):
-                            enc_sent = enc[0]
+                        if(last_index<0):
+                            enc_sent=enc[0]
                         else:
-                            enc_sent = enc[0][last_index + 6:]
+                            enc_sent=enc[0][last_index+6:]
 
-                        enc_sent_arr = enc_sent.split()
-                        similar_reply_sent = get_similar_movie_responses(movie_id, 1, enc_sent_arr)
-                        similar_reply_sent = similar_reply_sent[0]
-                        similar_reply_sent = similar_reply_sent.replace("'", "")
+                        enc_sent_arr=enc_sent.split()
+                        similar_reply_sent=get_similar_movie_responses(movie_id,1,enc_sent_arr)
+                        similar_reply_sent=similar_reply_sent[0]
+                        similar_reply_sent=similar_reply_sent.replace("'","")
                         ##print(similar_reply)
                         ##similar_reply_sent=" ".join(str(x) for x in similar_reply[0])
-                        if (len(similar_reply_sent) == 0):
-                            similar_reply_sent = "<PAD>"
-                        similiar_sent_indx = convert2(similar_reply_sent)
+                        if(len(similar_reply_sent)==0):
+                            similar_reply_sent="<PAD>"
+                        similiar_sent_indx=convert2(similar_reply_sent)
 
                         ##print(enc_sent_arr)
                         if (len(enc) < batch_size):
@@ -292,33 +293,46 @@ def test_side():
                         dec_lengths = torch.tensor(dec_lengths).long().to(device)
                         input_sent = torch.tensor(input_sent).long().to(device)
                         dec_sent_index = torch.tensor(dec_sent_index).long().to(device)
-                        similiar_sent_indx = torch.tensor(similiar_sent_indx).long().to(device)
+                        similiar_sent_indx=torch.tensor(similiar_sent_indx).long().to(device)
                         ##dec_sent_index.requires_grad=False
                         ##print(input_sent.shape,dec_sent_index.shape)
                         ##print(enc_lengths,dec_lengths)
                         know_hidd = model.forward_knowledge_movie(plot_sent_indx_arr, review_sent_indx_arr,
-                                                                  comment_sent_indx_arr, similiar_sent_indx)
+                                                                  comment_sent_indx_arr,similiar_sent_indx)
                         isRely = True
                         start_index = torch.tensor([1]).repeat(batch_size, 1).long().to(device)
-
-                        print('here')
+                        """
+                        output, coverage, current_attention = model.forward(input_sent, dec_sent_index,
+                                                                                start_index,
+                                                                                True, know_hidd,
+                                                                                isRely, plot_sent_indx_arr,
+                                                                                review_sent_indx_arr,
+                                                                                comment_sent_indx_arr, enc_lengths,
+                                                                                dec_lengths,(uniq_indxs,indx_dic))
+                        """
                         output, coverage, current_attention = model.forward(input_sent, dec_sent_index,
                                                                             start_index,
                                                                             False, know_hidd,
                                                                             isRely)
-
                         org_word_index = dec_sent_index.clone()
                         max_prob_index = torch.argmax(output, dim=1)
-                        print(max_prob_index)
                         batch_sentences = []
-
+                        ##print(dec_lengths)
+                        """
+                        for b in range(max_prob_index.shape[0]):
+                            sentence_str = ''
+                            actual_len = dec_lengths[b]
+                            ##print(actual_len)
+                            for w in range(actual_len):
+                                ##word=i2w[str((max_prob_index[w]).item())]
+                                word = i2w[str((max_prob_index[b][w]).item())]
+                                sentence_str += word+' '
+                        """
                         sentence_str = ''
                         for b in range(max_prob_index.shape[0]):
                             ##print(actual_len)
                             word = i2w[str((max_prob_index[b]).item())]
                             sentence_str += word + ' '
-
-                        print(sentence_str)
 
                         batch_sentences.append(sentence_str)
                         sent_index = 0
@@ -339,14 +353,13 @@ def test_side():
                                 txt_file.write("\n")
                                 txt_file.flush()
                             sent_index += 1
-                        ##print(batch_sentences)
+
+                        org_word_index = dec_sent_index.clone()
+                        org_word_index = org_word_index.squeeze(0)
 
             txt_file.write("Movie Completed " + str(count))
             txt_file.write("\n")
-            torch.cuda.empty_cache()
-            if (count % 100 == 0 and count > 610):
-                save_model(epoch, loss, optimizer, model)
-        print("Epoch Completed")
-        txt_file.close()
+    txt_file.close()
+
 
 test_side()

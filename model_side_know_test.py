@@ -198,15 +198,15 @@ class Model(nn.Module):
                 ##att_sum=torch.sum(torch.min(coverage[i+1], current_attention[i+1]))+att_sum
                 ##print(coverage)
                 ##print(current_attention)
-                out_word_list[i,:]=out_word_data
+                out_word_list[i+1,:]=out_word_data
                 ##probs = F.softmax(out_word_data, dim=0)
-                ##index = torch.argmax(out_word_data)
+                index = torch.argmax(out_word_data)
 
         else:
-            out_word_list, coverage, current_attention = self.forward_test(encoder_out, know_hidd, lstm_out, start_index)
+            out_word_list, coverage, current_attention = self.forward_test(encoder_out, know_hidd, lstm_out,
+                                                                           start_index)
 
         return out_word_list,coverage,current_attention
-
 
     def end_of_sentence(self, output, counter):
         if (counter == -1):
@@ -218,6 +218,7 @@ class Model(nn.Module):
                 return False
         return True
 
+
     def forward_test(self, encoder_out, know_hidd, lstm_out, start_index):
 
         output = [torch.tensor(1)]
@@ -225,7 +226,6 @@ class Model(nn.Module):
         count = -1
 
         while self.end_of_sentence(output, count):
-            print(count)
             if (count == -1):
                 out, hidden_state = self.decoder.forward(start_index)
             else:
@@ -255,16 +255,13 @@ class Model(nn.Module):
             ##print(coverage)
             ##print(current_attention)
             out_word_data = out_word_data.squeeze()
-            ##print(out_word_data.shape)
+            ##probs = F.softmax(out_word_data, dim=0)
             index = torch.argmax(out_word_data)
-            print(out_word_data)
-            print(index)
+
             out_word_list.append(out_word_data)
             output.append(index)
 
             count = count + 1
-            ##probs = F.softmax(out_word_data, dim=0)
-            ##index = torch.argmax(out_word_data)
 
         out_word_list = torch.stack(out_word_list)
         return out_word_list, [], []
