@@ -187,7 +187,7 @@ class Model(nn.Module):
                 ##att_sum=torch.sum(torch.min(coverage[i+1], current_attention[i+1]))+att_sum
                 ##print(coverage)
                 ##print(current_attention)
-                out_word_list[i+1,:]=out_word_data
+                out_word_list[i,:]=out_word_data
                 ##probs = F.softmax(out_word_data, dim=0)
                 ##index = torch.argmax(out_word_data)
 

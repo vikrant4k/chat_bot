@@ -162,7 +162,7 @@ def unique(tensor1d):
     return torch.from_numpy(t), torch.from_numpy(idx)
 
 def train_model():
-    model_exist=True
+    model_exist=False
     lamb=1e-4
     prob=0.6
     ts = time.time()
@@ -190,7 +190,7 @@ def train_model():
         for data in movie_data:
             tot_loss=0
             count = count + 1
-            if(count>=0):
+            if(count>0):
                 movie = movie_data[data]
                 chats = movie.chat
                 
@@ -338,12 +338,11 @@ def train_model():
                             optimizer.step()
                             chats_complted += batch_size
                         else:
-                             sd=1
-                           ## torch.cuda.empty_cache()
-           ## print(torch.cuda.memory_allocated(device=device)*math.pow(10,-9))
+                            torch.cuda.empty_cache()
+            print(torch.cuda.memory_allocated(device=device)*math.pow(10,-9))
             txt_file.write("Movie Completed "+str(count))
             txt_file.write("\n")
-            ##torch.cuda.empty_cache()
+            torch.cuda.empty_cache()
             if(count%100==0):
                 save_model(epoch,loss,optimizer,model)
         print("Epoch Completed")
