@@ -180,7 +180,7 @@ def unique(tensor1d):
 
 
 def train_model():
-    model_exist = True
+    model_exist = False
     lamb = 1e-4
     prob = 0.6
     ts = time.time()
