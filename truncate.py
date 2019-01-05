@@ -22,13 +22,10 @@ def truncate(plot, comments, reviews, max_length):
     reviews = reviews_token[:int(r_ratio)]
     
     knowledge_base = plot + comments + reviews
-    sent=""
-    for data in knowledge_base:
-        sent+=data+" "
+    
     #print(plot,"\n\n")
     #print(comments, "\n\n")
     #print(reviews, "\n\n")
-    lis=[]
-    lis.append(sent)
-    return lis
+    
+    return knowledge_base
     

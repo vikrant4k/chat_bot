@@ -18,7 +18,7 @@ with open('w2i_movie_names.json') as f:
 with open('i2w_movie_names.json') as f:
     i2w_movies = json.load(f)
 
-with open('movie_data_separate.pkl', 'rb') as f:
+with open('movie_data.pkl', 'rb') as f:
     movie_data = pickle.load(f)
 
 # LOAD MOVIE EMBEDDINGS AND NECESSARY VOCABULARIES (and some preprocessing)
@@ -105,13 +105,13 @@ def get_similar_movie_obj(movie_id):
 # closest_movie_object = return_similar_movie_obj('tt0061452')
 # print(closest_movie_object)
 
-closest_dict = dict()
- 
-for m in movie_data:
-    closest_dict[m] = get_similar_movie_obj(m)
+# closest_dict = dict()
 # 
-with open('neighbours.pkl', 'wb') as f:
-    pickle.dump(closest_dict, f)
+# for m in movie_data:
+#     closest_dict[m] = get_similar_movie_obj(m)
+# 
+# with open('neighbours.pkl', 'wb') as f:
+#     pickle.dump(closest_dict, f)
 
 with open('neighbours.pkl', 'rb') as f:
     nbs = pickle.load(f)

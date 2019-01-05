@@ -1,8 +1,0 @@
-Model: teaching ballet <PAD> teaching parents <EOS> her up classes her help <PAD> pressuring refuse <EOS> parents unknown 
-Model: <SOS> help <EOS> help pressuring pressuring unknown to ballet classes honey <PAD> help pressuring <EOS> <SOS> ballet to 
-Model: <PAD> 
-Model: <PAD> 
-Model: <PAD> <SOS> 
-Model: <PAD> pressuring <EOS> pressuring <SOS> 
-Model: <PAD> 
-Model: <PAD> 
