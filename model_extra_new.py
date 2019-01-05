@@ -196,12 +196,14 @@ class Model(nn.Module):
                     if(isRely):
                         next_word=dec_sent_index[:,i]
                         next_word=next_word.reshape(next_word.shape[0],1)
+                        next_word_index=next_word_index.reshape(1,1)
                         ##out, hidden_state = self.decoder.forward(dec_sent_index[i])
-                        out, hidden_state = self.decoder.forward(next_word,dec_lengths)
+                        out, hidden_state = self.decoder.forward(next_word_index,dec_lengths)
                     else:
                         ##probs = F.softmax(out_word_data, dim=0)
                         ##index = torch.argmax(probs)
-                        out, hidden_state = self.decoder.forward(dec_sent_index[i])
+                        a=1
+                        ##out, hidden_state = self.decoder.forward(dec_sent_index[i])
                 decoder_out=hidden_state[0]
                 current_state_mask=mask_decoder[:,i+1]
                 ##current_state_mask=current_state_mask.view(current_state_mask.shape[0],1,1)
@@ -216,21 +218,8 @@ class Model(nn.Module):
                 ##out_word=self.calculate_pointer(resource_context,context,decoder_out,self.word_embedding(index),(plot_sent_indx_arr,resource_context_plot),(review_sent_indx_arr,resource_context_rev)
                 ##                                ,(comment_sent_indx_arr,resource_context_com))
 
-                attention_weights=attention_weights.squeeze()
-                if(i==-1):
-                    temp_sum=torch.zeros(batch_size,lstm_out.shape[1],device=device)
-                    ##print(temp_sum.shape)
-                else:
-                    ##print(last_attention_weight.shape)
-                    temp_sum=temp_sum+last_attention_weight
-                coverage[:,i+1,:]=temp_sum
-                current_attention[:,i+1,:]=attention_weights
-                last_attention_weight=attention_weights
-                ##att_sum=torch.sum(torch.min(coverage[i+1], current_attention[i+1]))+att_sum
-                ##print(coverage)
-                ##print(current_attention)
                 out_word_data=out_word_data.squeeze()
-                ##print(out_word_data.shape)
+                next_word_index=torch.argmax(out_word_data)
                 out_word_list[:,i+1,:]=out_word_data
                 ##probs = F.softmax(out_word_data, dim=0)
                 ##index = torch.argmax(out_word_data)

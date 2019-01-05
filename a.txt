@@ -1,8 +1,9 @@
-Model: teaching ballet <PAD> teaching parents <EOS> her up classes her help <PAD> pressuring refuse <EOS> parents unknown 
-Model: <SOS> help <EOS> help pressuring pressuring unknown to ballet classes honey <PAD> help pressuring <EOS> <SOS> ballet to 
-Model: <PAD> 
-Model: <PAD> 
-Model: <PAD> <SOS> 
-Model: <PAD> pressuring <EOS> pressuring <SOS> 
-Model: <PAD> 
-Model: <PAD> 
+Speaker 1:i tend to agree with nyts review which says:
+Model: jacked crowder that: billie billie debt teddys disapproves situation special thirties overused jacked baton animalistic skipped confront 
+Speaker 2:this movie is brings out the wholesome affirmative side of the hip-hop aesthetic without being overly preachy
+Speaker 1:i agree its one of the gems that we get each year
+Model: this movie <EOS> the the movie movie movie movie the of of movie movie Moon marion movie of 
+Speaker 2:i love that part when honey gets a bank loan and puts down a deposit whats your favorite
+Speaker 1:the ending where she holds a dance benefit using an abandoned church whos your favorite character
+Model: this movie 
+Speaker 2:honey ofcourse

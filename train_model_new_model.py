@@ -175,7 +175,7 @@ def preprocess(data1, data2, PAD=0):
 
 
 def train_model():
-    model_exist = False
+    model_exist = True
     lamb = 1e-4
     prob = 0.6
     ts = time.time()
@@ -302,38 +302,6 @@ def train_model():
                                 txt_file.flush()
                             sent_index+=1
                         ##print(batch_sentences)
-
-                        ##ls=torch.min(coverage,current_attention,dim=1)
-                        print(coverage.shape,current_attention.shape)
-                        for j in range(0, dec_sent_index.shape[1]):
-                            ##output_text += (i2w[str(index.item())]) + " "
-                            if (j == 0):
-                                att_sum = torch.sum(torch.min(coverage[:, j, :], current_attention[:, j, :]), dim=1)
-                            else:
-                                att_sum = torch.sum(torch.min(coverage[:, j, :], current_attention[:, j, :]),
-                                                    dim=1) + att_sum
-                        ##print(output.view(output.shape[0]*output.shape[1],output.shape[2]).shape,org_word_index[:-1].shape)
-                        org_word_index = org_word_index.view(output.shape[0] * output.shape[1])
-                        output = output.view(output.shape[0] * output.shape[1], output.shape[2])
-                        le1 = org_word_index.shape[0] / 2
-                        le1 = int(le1)
-                        loss = criterion(output, org_word_index) + torch.mean(att_sum)
-                        ##loss=torch.sum(loss)
-                        print(loss.item())
-                        if (loss.item() < 50):
-                            tot_loss += loss.item()
-                            model.zero_grad()
-                            loss.backward()
-                            optimizer.step()
-                            chats_complted += batch_size
-                        else:
-                            torch.cuda.empty_cache()
-            print(torch.cuda.memory_allocated(device=device) * math.pow(10, -9))
-            txt_file.write("Movie Completed " + str(count))
-            txt_file.write("\n")
-            torch.cuda.empty_cache()
-            if (count % 100 == 0):
-                save_model(epoch, loss, optimizer, model)
         print("Epoch Completed")
     txt_file.close()
 

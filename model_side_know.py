@@ -128,7 +128,6 @@ class Model(nn.Module):
         ##self.p_gen=torch.zeros(1,device="cuda:0")
         self.prob_vocab=prob_vocab
         self.pointer=Pointer(init_size*8,init_size*2,init_size*2,init_size,vocab_size)
-        self.att_word_weights = torch.zeros(self.vocab_size, device=device)
 
     def forward_knowledge_movie(self,plot,review,comment,side_know_data):
         data_out=[]
@@ -161,8 +160,6 @@ class Model(nn.Module):
         self.decoder.hidden=self.decoder.init_hidden(ini_dec_hidd_state)
         encoder_out = lstm_out.view(lstm_out.shape[0], 1, init_size*2)
         out_word_list = torch.zeros(len(dec_sent_index),self.vocab_size,device=device)
-        self.fin_list=[]
-        self.keys=[]
         if(isTrain):
             coverage=torch.zeros(len(dec_sent_index),lstm_out.shape[0],device=device)
             current_attention=torch.zeros(len(dec_sent_index),lstm_out.shape[0],device=device)
@@ -213,19 +210,15 @@ class Model(nn.Module):
 
     def calculate_pointer(self,resource,context,hidden_state,prev_input_word,tot_att_know,indx_dic,out_word_data):
         p_gen=self.pointer.forward(resource,context,hidden_state,prev_input_word)
-        att_word_weights=self.att_word_weights.clone()
-        att_word_weights[:]=0
-        if(len(self.fin_list)==0):
-            for key in indx_dic:
-                lis = indx_dic[key]
-                vals = torch.LongTensor(lis)
-                vals = vals.to(device)
-                self.fin_list.append(vals)
-                self.keys.append(key)
-        for i in range(0,len(self.fin_list)):
-            att_w_weights=torch.index_select(tot_att_know,0,self.fin_list[i])
+        att_word_weights=torch.zeros(self.vocab_size,device=device)
+        first=True
+        for key in indx_dic:
+            lis=indx_dic[key]
+            vals=torch.LongTensor(lis)
+            vals=vals.to(device)
+            att_w_weights=torch.index_select(tot_att_know,0,vals)
             att_word_sum=torch.sum(att_w_weights,dim=0)
-            att_word_weights[self.keys[i]]=att_word_sum
+            att_word_weights[key]=att_word_sum
         p_w=p_gen*out_word_data+(1-p_gen)*att_word_weights
         return p_w
 

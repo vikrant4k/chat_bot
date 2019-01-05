@@ -98,9 +98,9 @@ def convert2(sentence):
 def churn_review(review):
     for i in range(0, len(review)):
         str_arr = review[i].split()
-        if (len(str_arr) > 200):
+        if (len(str_arr) > 450):
             str = ''
-            for j in range(0, 200):
+            for j in range(0, 450):
                 if (j == 0):
                     str = str_arr[0]
                 else:
