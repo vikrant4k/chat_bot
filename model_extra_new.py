@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 
 init_size=256
-batch_size=3
+batch_size=1
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print(device)
 class Encoder(nn.Module):
@@ -170,9 +170,10 @@ class Model(nn.Module):
         out_word_list = torch.zeros(batch_size,dec_sent_index.shape[1],self.vocab_size,device=device)
         if(isTrain):
             ##mask_encoders=torch.ones(lstm_out.shape[0],lstm_out.shape[1]).to(device)
-            mask_decoder=torch.ones(lstm_out.shape[0],dec_sent_index.shape[1]).to(device)
-            for k in range(0, len(dec_lengths)):
-                mask_decoder[k] = torch.cat((torch.ones(dec_lengths[k]), torch.zeros(dec_sent_index.shape[1] - dec_lengths[k])))
+            ##mask_decoder=torch.ones(lstm_out.shape[0],dec_sent_index.shape[1]).to(device)
+            ##for k in range(0, len(dec_lengths)):
+            ##    mask_decoder[k] = torch.cat(
+            ##        (torch.ones(dec_lengths[k]), torch.zeros(dec_sent_index.shape[1] - dec_lengths[k])))
             ##for k in range(0,len(enc_lengths)):
             ##    mask_encoders[k]=torch.cat((torch.ones(enc_lengths[k]),torch.zeros(lstm_out.shape[1]-enc_lengths[k])))
             ##mask_encoders=mask_encoders.view(mask_encoders.shape[0],mask_encoders.shape[1],1)
@@ -196,10 +197,9 @@ class Model(nn.Module):
                         ##index = torch.argmax(probs)
                         out, hidden_state = self.decoder.forward(dec_sent_index[i])
                 decoder_out=hidden_state[0]
-                current_state_mask=mask_decoder[:,i+1]
-                ##current_state_mask=current_state_mask.view(current_state_mask.shape[0],1,1)
-                current_state_mask=current_state_mask.view(1,batch_size,1)
-                decoder_out=decoder_out*current_state_mask
+                ##current_state_mask=mask_decoder[:,i+1]
+                ##current_state_mask=current_state_mask.view(1,batch_size,1)
+                ##ecoder_out=decoder_out*current_state_mask
                 resource_context_plot=self.plot_knowledge.calculate_resource_attention(know_hidd[0],decoder_out)
                 resource_context_rev = self.rev_knowledge.calculate_resource_attention(know_hidd[1], decoder_out)
                 resource_context_com = self.com_knowledge.calculate_resource_attention(know_hidd[2], decoder_out)
@@ -258,7 +258,6 @@ class Model(nn.Module):
         context = torch.bmm(attention_weights.transpose(2,1),lstm_out)
         ##print(context.shape)
         concat = torch.cat((context,decoder_out,resource_context), 2)
-        concat=concat.squeeze(1)
         ##concat=torch.cat((context,decoder_out),2)
         out_word_data = self.linear1(concat)
         return out_word_data,attention_weights,context
