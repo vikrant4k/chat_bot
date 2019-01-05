@@ -13,8 +13,7 @@ import math
 import numpy as np
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-print(device)
-batch_size = 1
+batch_size = 3
 
 
 def load_index_files():
@@ -195,7 +194,7 @@ def train_model():
     else:
         model = Model(256, max_val + 1, prob_vocab)
         model = model.to(device)
-        optimizer = optim.Adam(model.parameters())
+        optimizer = optim.Adam(model.parameters(),lr=0.01)
     criterion = nn.CrossEntropyLoss(ignore_index=0)
     count = 0
     chats_complted = 0
@@ -242,9 +241,9 @@ def train_model():
                         enc_lengths = []
                         dec_lengths = []
                         for ea in enc:
-                            enc_lengths.append(len(ea.split())+2)
+                            enc_lengths.append(len(ea.split()))
                         for da in dec:
-                            dec_lengths.append(len(da.split())+1)
+                            dec_lengths.append(len(da.split()))
                         kj = 0
                         for lo in dec_lengths:
                             if (lo > 40):
@@ -304,7 +303,6 @@ def train_model():
                         ##print(batch_sentences)
 
                         ##ls=torch.min(coverage,current_attention,dim=1)
-                        print(coverage.shape,current_attention.shape)
                         for j in range(0, dec_sent_index.shape[1]):
                             ##output_text += (i2w[str(index.item())]) + " "
                             if (j == 0):
@@ -317,6 +315,10 @@ def train_model():
                         output = output.view(output.shape[0] * output.shape[1], output.shape[2])
                         le1 = org_word_index.shape[0] / 2
                         le1 = int(le1)
+                        for ind in range(0, batch_size):
+                            diff = le1 - dec_lengths[ind]
+                            for op in range(dec_lengths[ind], le1):
+                                output[op] *= 1e-30
                         loss = criterion(output, org_word_index) + torch.mean(att_sum)
                         ##loss=torch.sum(loss)
                         print(loss.item())

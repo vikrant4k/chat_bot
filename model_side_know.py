@@ -79,7 +79,7 @@ class KnowledgeRNN(nn.Module):
         else:
            attention_weights=attention_weights.squeeze()
         context_vector=torch.matmul(torch.t(know_hidd),attention_weights)
-        return context_vector,attention_weights
+        return context_vector
 
 class Attention(nn.Module):
 
@@ -102,7 +102,7 @@ class Pointer(nn.Module):
         self.w_context = nn.Linear(context_dim, vocab_size, bias=False)
         self.w_dec_hidden=nn.Linear(dec_hidden_state_dim,vocab_size,bias=False)
         self.w_prev_input_word=nn.Linear(prev_input_word_dim,vocab_size,bias=False)
-        self.bias=torch.randn(vocab_size,device=device)
+        self.bias=torch.randn(vocab_size,device="cuda:0")
 
     def forward(self,resource,context,hidden_state,prev_input_word):
         out=torch.sigmoid(self.w_resource(resource)+self.w_context(context)+self.w_dec_hidden(hidden_state)+self.w_prev_input_word(prev_input_word)+self.bias)
@@ -127,8 +127,7 @@ class Model(nn.Module):
         self.decoder_attention=Attention(init_size*4)
         ##self.p_gen=torch.zeros(1,device="cuda:0")
         self.prob_vocab=prob_vocab
-        self.pointer=Pointer(init_size*8,init_size*2,init_size*2,init_size,vocab_size)
-        self.att_word_weights = torch.zeros(self.vocab_size, device=device)
+        ###self.pointer=Pointer(init_size*6,init_size*2,init_size*2,init_size,vocab_size)
 
     def forward_knowledge_movie(self,plot,review,comment,side_know_data):
         data_out=[]
@@ -152,7 +151,7 @@ class Model(nn.Module):
 
 
 
-    def forward(self,enc_sent_indx,dec_sent_index,start_index,isTrain,know_hidd,isRely,indx_dic):
+    def forward(self,enc_sent_indx,dec_sent_index,start_index,isTrain,know_hidd,isRely):
         dec_sent_index=dec_sent_index.squeeze(0)
         self.encoder.hidden = self.encoder.init_hidden() #TODO WE CREATE HIDDEN HERE ACTUALLY
         att_sum=None
@@ -161,8 +160,6 @@ class Model(nn.Module):
         self.decoder.hidden=self.decoder.init_hidden(ini_dec_hidd_state)
         encoder_out = lstm_out.view(lstm_out.shape[0], 1, init_size*2)
         out_word_list = torch.zeros(len(dec_sent_index),self.vocab_size,device=device)
-        self.fin_list=[]
-        self.keys=[]
         if(isTrain):
             coverage=torch.zeros(len(dec_sent_index),lstm_out.shape[0],device=device)
             current_attention=torch.zeros(len(dec_sent_index),lstm_out.shape[0],device=device)
@@ -180,16 +177,16 @@ class Model(nn.Module):
                         ##index = torch.argmax(probs)
                         out, hidden_state = self.decoder.forward(dec_sent_index[i])
                 decoder_out=hidden_state[0].view(1,init_size*2)
-                resource_context_plot,att_plot=self.plot_knowledge.calculate_resource_attention(know_hidd[0],decoder_out)
-                resource_context_rev,att_rev = self.rev_knowledge.calculate_resource_attention(know_hidd[1], decoder_out)
-                resource_context_com,att_com = self.com_knowledge.calculate_resource_attention(know_hidd[2], decoder_out)
+                resource_context_plot=self.plot_knowledge.calculate_resource_attention(know_hidd[0],decoder_out)
+                resource_context_rev = self.rev_knowledge.calculate_resource_attention(know_hidd[1], decoder_out)
+                resource_context_com = self.com_knowledge.calculate_resource_attention(know_hidd[2], decoder_out)
                 if(know_hidd[3].shape[0]==init_size*2):
                     know_hidd[3]=know_hidd[3].unsqueeze(0)
-                resource_context_sim,att_sim = self.side_know.calculate_resource_attention(know_hidd[3], decoder_out)
+                resource_context_sim = self.side_know.calculate_resource_attention(know_hidd[3], decoder_out)
                 resource_context=torch.cat((resource_context_plot,resource_context_rev,resource_context_com,resource_context_sim),dim=0)
-                tot_att_know=torch.cat((att_plot,att_rev,att_com,att_sim),dim=0)
                 out_word_data,attention_weights,context=self.calculate_decoder_attention(lstm_out,encoder_out,hidden_state,decoder_out,resource_context)
-                out_word_data=self.calculate_pointer(resource_context,context,decoder_out,self.word_embedding(index),tot_att_know,indx_dic,out_word_data)
+                ##out_word=self.calculate_pointer(resource_context,context,decoder_out,self.word_embedding(index),(plot_sent_indx_arr,resource_context_plot),(review_sent_indx_arr,resource_context_rev)
+                ##                                ,(comment_sent_indx_arr,resource_context_com))
                 if(i==-1):
                     temp_sum=torch.zeros(1,lstm_out.shape[0],device=device)
                 else:
@@ -201,9 +198,9 @@ class Model(nn.Module):
                 ##att_sum=torch.sum(torch.min(coverage[i+1], current_attention[i+1]))+att_sum
                 ##print(coverage)
                 ##print(current_attention)
-                out_word_list[i,:]=out_word_data
+                out_word_list[i+1,:]=out_word_data
                 ##probs = F.softmax(out_word_data, dim=0)
-                ##index = torch.argmax(out_word_data)
+                index = torch.argmax(out_word_data)
 
 
         return out_word_list,coverage,current_attention
@@ -211,23 +208,17 @@ class Model(nn.Module):
 
         ##attention_input = torch.cat((encoder_out[:, -1], decoder_temp), dim=1)
 
-    def calculate_pointer(self,resource,context,hidden_state,prev_input_word,tot_att_know,indx_dic,out_word_data):
+    def calculate_pointer(self,resource,context,hidden_state,prev_input_word,plot_data,review_data,comment_data):
         p_gen=self.pointer.forward(resource,context,hidden_state,prev_input_word)
-        att_word_weights=self.att_word_weights.clone()
-        att_word_weights[:]=0
-        if(len(self.fin_list)==0):
-            for key in indx_dic:
-                lis = indx_dic[key]
-                vals = torch.LongTensor(lis)
-                vals = vals.to(device)
-                self.fin_list.append(vals)
-                self.keys.append(key)
-        for i in range(0,len(self.fin_list)):
-            att_w_weights=torch.index_select(tot_att_know,0,self.fin_list[i])
-            att_word_sum=torch.sum(att_w_weights,dim=0)
-            att_word_weights[self.keys[i]]=att_word_sum
-        p_w=p_gen*out_word_data+(1-p_gen)*att_word_weights
-        return p_w
+        att_word_weights=torch.zeros(self.vocab_size,device=device)
+        bases=[plot_data,review_data,comment_data]
+        for base in bases:
+            indxs=base[0]
+            att=base[1]
+            for i in range(0,len(indxs)):
+                att_word_weights[indxs[i]]=att_word_weights[indxs[i]]+att[i]
+        p_w=p_gen*self.prob_vocab+(1-p_gen)*att_word_weights
+        return p_gen
 
     def calculate_decoder_attention(self,lstm_out,encoder_out,hidden_state,decoder_out,resource_context):
         decoder_temp = decoder_out.repeat(encoder_out.shape[0], 1)

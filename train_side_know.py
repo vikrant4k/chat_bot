@@ -12,7 +12,6 @@ from collections import deque
 import math
 import numpy as np
 from pick_similar_sentences import get_similar_movie_responses
-import copy
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 batch_size = 1
@@ -205,7 +204,7 @@ def train_model():
     criterion = nn.CrossEntropyLoss(ignore_index=0)
     count = 0
     chats_complted = 0
-    for epoch in range(2):
+    for epoch in range(200):
         for data in movie_data:
             tot_loss = 0
             count = count + 1
@@ -234,6 +233,7 @@ def train_model():
                             else:
                                 indx_dic[val] = []
                                 indx_dic[val].append(indy)
+
                 # just the plot
                 # model.knowledge.forward(plot_sent_indx)
                 tot_loss = 0
@@ -265,17 +265,9 @@ def train_model():
                         similar_reply_sent=similar_reply_sent.replace("'","")
                         ##print(similar_reply)
                         ##similar_reply_sent=" ".join(str(x) for x in similar_reply[0])
-                        indx_dic_1=copy.deepcopy(indx_dic)
                         if(len(similar_reply_sent)==0):
                             similar_reply_sent="<PAD>"
-                        tot_len_know_base=len(tot_know_base)
                         similiar_sent_indx=convert2(similar_reply_sent)
-                        for irt in range(0,len(similiar_sent_indx)):
-                            if(similiar_sent_indx[irt] in indx_dic_1):
-                                indx_dic_1[similiar_sent_indx[irt]].append(tot_len_know_base+irt)
-                            else:
-                                indx_dic_1[similiar_sent_indx[irt]]=[]
-                                indx_dic_1[similiar_sent_indx[irt]].append(tot_len_know_base+irt)
 
                         ##print(enc_sent_arr)
                         if (len(enc) < batch_size):
@@ -321,7 +313,7 @@ def train_model():
                         output, coverage, current_attention = model.forward(input_sent, dec_sent_index,
                                                                             start_index,
                                                                             True, know_hidd,
-                                                                            isRely,indx_dic_1)
+                                                                            isRely)
                         org_word_index = dec_sent_index.clone()
                         max_prob_index = torch.argmax(output, dim=1)
                         batch_sentences = []
